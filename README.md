@@ -31,12 +31,11 @@ The launcher also checks for updates to both.
 Keep the launcher: open it again to get updates. Your parkour settings are kept.
 
 **Without the launcher window** (Faith Runner, from a command prompt in the unzipped folder, GTA closed):
-A launcher-less download is planned and would just use a script to install faithrunner alone.
 
 ```
 Launcher.exe --install-parkour --gta "<GTA V folder>" --mirrors "<Mirror's Edge folder>"
 ```
-
+A launcher-less download is planned and would just use a script to install faithrunner alone.
 ## Controls (Faith Runner)
 
 | Action | Keyboard and mouse | Controller |
