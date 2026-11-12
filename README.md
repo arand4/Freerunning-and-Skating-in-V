@@ -100,6 +100,14 @@ It builds `launcher` and `faithrunner-v` and makes the zip in `release\out`.
 | `media/` | The launcher card video and SK8V's card picture |
 | `release/` | The release build script and the texts that go in the zip |
 
+## Support
+
+Freerunning and Skating in V is free and always will be. If you enjoy it, a donation is never required but always appreciated:
+
+[![Support me on Ko-fi](https://storage.ko-fi.com/cdn/kofi3.png?v=3)](https://ko-fi.com/arand4)
+
+The skating half is becaring's SK8V: you can support him on [Ko-fi](https://ko-fi.com/becaring) or [Buy Me a Coffee](https://buymeacoffee.com/becaring) too.
+
 ## Credits and licences
 
 - **Faith Runner** by Tanner, MIT: https://github.com/tnrjns/faith-runner

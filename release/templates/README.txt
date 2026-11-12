@@ -77,6 +77,10 @@ UNINSTALL (GTA closed)
   SK8V: see "Uninstall" in SK8V's README.
   ScriptHookV is left alone either way.
 
+SUPPORT
+  Free, and always will be. A donation is never required but always appreciated:
+  https://ko-fi.com/arand4   (SK8V's maker, becaring: https://ko-fi.com/becaring)
+
 CREDITS AND LICENCES
   See NOTICE.txt. In short: Faith Runner by Tanner (MIT), SK8V by becaring (Apache-2.0), live GTA
   collision reading by Sol4ra. @NAME@ is an unofficial fan project, not made or endorsed by
