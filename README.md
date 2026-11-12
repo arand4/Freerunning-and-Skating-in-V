@@ -58,7 +58,11 @@ SK8V's controls: see [its README](https://github.com/becaring/SK8V#controls).
 - **Missions are untested.** Nobody knows yet how parkour mode behaves during story missions: switch it off with F8 if one acts up.
 - **Some of Faith Runner's moves can't happen in GTA yet**, because the mod only finds ladders in the world so far: swing poles, balance beams (planned for narrow parapets and fence tops), barging or kicking doors open, tripping on barbed wire and soft landings on mattresses.
 
-**Not tried in GTA yet** (they're in Faith Runner and should work, but haven't been tested): dodge, 180 in the air, the wallclimb turn and kick-off, shimmying along and round ledges, coil and the classic springboard. The wall-to-wall push-off works but still needs some polish.
+**Not tried in GTA yet** (they're in Faith Runner and should work, but haven't been tested): dodge, 180 in the air, the wallclimb turn and kick-off, coil and the classic springboard. The wall-to-wall push-off works but still needs some polish.
+
+**Planned updates:**
+
+- Shimmying along ledges and round corners while hanging: it hasn't triggered in GTA yet.
 
 Also:
 
