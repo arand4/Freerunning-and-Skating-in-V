@@ -45,6 +45,46 @@ INSTALL WITHOUT THE LAUNCHER WINDOW
   reads Faith's files from Mirror's Edge each time GTA starts, so keep Mirror's Edge installed.
   SK8V: see "Install" in SK8V's README (github.com/becaring/SK8V), which also has a command line.
 
+STAYING ON 1.0.3889.0
+  Faith Runner, SK8V and ScriptHookV all need GTA V Legacy 1.0.3889.0. A game update replaces
+  GTA5.exe, and none of them will run again until each gets an update of its own. The launcher's
+  Guide button has these same steps.
+
+  Starting GTA without the launcher
+    PLAY just starts PlayGTAV.exe from your GTA folder with -nobattleye (BattlEye has to be off, or
+    it blocks ScriptHookV and both mods). A shortcut does the same:
+    1. In your GTA V folder, right-click PlayGTAV.exe > Send to > Desktop (create shortcut).
+    2. Right-click the new shortcut > Properties. In Target, after the closing quote, add a space and
+       -nobattleye, so it ends like ...\PlayGTAV.exe" -nobattleye. Press OK.
+
+  Keeping the game from updating
+    Turn updates off in BOTH places: the store you bought it from (Steam or Epic) AND the Rockstar
+    Games Launcher, because either one can update the game by itself.
+    - Steam: Library > right-click GTA V Legacy > Properties > Updates > Automatic updates: Only
+      update this game when I launch it. Then start the game with PLAY or the shortcut, never Steam's
+      Play button: that installs any waiting update before the game starts.
+    - Epic Games: Library > GTA V > ... > Manage > turn Auto-update off.
+    - Rockstar Games Launcher: Settings > My installed games > Grand Theft Auto V > turn Enable
+      automatic updates off.
+    - Don't use Steam's "Verify integrity of game files": it brings in the newest version too.
+    While you're still on 1.0.3889.0, keep a backup of the files an update replaces (below).
+
+  Undoing a game update
+    With a backup (best): copy these from your GTA V folder somewhere safe while the game is still
+    on 1.0.3889.0 (about 2.5 GB):
+      GTA5.exe, GTA5_BE.exe, PlayGTAV.exe, GTAVLauncher.exe, GTAVLanguageSelect.exe, title.rgl,
+      versioninfo.txt, installscript.vdf, update\update.rpf, update\update2.rpf,
+      x64\metadata.dat and the x64\data\errorcodes folder.
+    To undo an update: close GTA, the Rockstar Games Launcher and Steam/Epic, copy the backup back
+    into the GTA V folder and choose Replace. Then remove what the update added: any new file in
+    update (like update3.rpf) and any new folder in update\x64\dlcpacks dated the day of the update.
+    Leave skatev (SK8V's) and your mods folder alone: an update doesn't touch those.
+    Without a backup, on Steam: find the 1.0.3889.0 manifests on https://steamdb.info/app/271590/depots/,
+    open Steam's console (Win+R, steam://open/console) and type download_depot 271590 <depot>
+    <manifest> for each part that changed; copy the files Steam saves over your GTA V folder, then
+    remove what the update added, as above. Epic or Rockstar Launcher copies can't download old
+    versions: a backup is the only way back.
+
 CONTROLS (Faith Runner)
   F8, or both sticks clicked together       parkour on / off
   Hold F8 (or both sticks) half a second    parkour settings menu (body, sounds, look speed...)
