@@ -59,9 +59,10 @@ KNOWN LIMITS (beta)
   - Parkour and skating don't run at the same time: put the board away before pressing F8.
   - First person only for parkour.
   - Water doesn't end parkour mode yet: press F8 before you jump in.
-  - Pedestrians have no collision yet: you run through people, and kicks and punches hit nobody.
-  - Only ladders are found in the world so far: no swing poles, ziplines, balance beams, door
-    barges, barbed wire, soft landings or takedowns yet.
+  - Pedestrians have no collision yet: you run through people.
+  - Missions are untested: switch parkour off with F8 if one acts up.
+  - Only ladders are found in the world so far: no swing poles, balance beams, door barges,
+    barbed wire or soft landings yet.
   - A fall from about 20 m ends parkour with GTA's ragdoll (LethalFall in FaithRunnerV.ini).
   - Teleporting while either mode is on can drop you through the map: switch it off first.
 
