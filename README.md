@@ -51,9 +51,18 @@ SK8V's controls: see [its README](https://github.com/becaring/SK8V#controls).
 
 ## Known limits (beta)
 
+**Big things still missing:**
+
+- **Water doesn't end parkour mode.** Jumping or falling into water should hand you back to GTA so you swim; for now, press F8 to switch parkour off first.
+- **Pedestrians have no collision.** You run straight through people, and kicks and punches hit nobody.
+- **Some of Faith Runner's moves can't happen in GTA yet**, because the mod only finds ladders in the world so far: swing poles, ziplines, balance beams, barging or kicking doors open, tripping on barbed wire, soft landings on mattresses, and takedowns.
+
+**Not tried in GTA yet** (they're in Faith Runner and should work, but haven't been tested): dodge, 180 in the air, wall-to-wall push-off, the wallclimb turn and kick-off, shimmying along and round ledges, coil, hard landings and roll timing, the classic springboard, and kicks and punches.
+
+Also:
+
 - Parkour and skating don't run at the same time: put the board away before pressing F8.
 - First person only for parkour.
-- No ziplines or swing poles (GTA has none to find).
 - A fall from about 20 m ends parkour with GTA's ragdoll (`LethalFall` in `FaithRunnerV.ini`).
 - Teleporting while either mode is on can drop you through the map: switch it off first.
 
