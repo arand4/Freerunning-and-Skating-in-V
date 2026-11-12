@@ -1,51 +1,48 @@
-SK8V
-Copyright 2026 becaring
+Freerunning and Skating in V
+Mirror's Edge parkour and Skate 3 skating in GTA V Legacy story mode.
+An unofficial fan project, unaffiliated with EA, DICE, Rockstar Games or Take-Two Interactive.
+It contains no Mirror's Edge, Skate 3 or GTA V code or data.
 
-Licensed under the Apache License, Version 2.0 (LICENSE).
+This repository is a fork of SK8V, but SK8V itself is not built or shipped from it: the launcher
+downloads becaring's own release from https://github.com/becaring/SK8V and runs his setup tools
+from it unchanged. SK8V's own files were removed from this fork's main branch except rust/svwc,
+which Faith Runner V uses. They are all in becaring's repository.
 
-SK8V is an unofficial fan project, unaffiliated with EA, Rockstar Games or
-Take-Two Interactive. It contains no GTA V or Skate 3 code or data; players
-convert their own copies. ScriptHookV is not included: it is fetched from
-Alexander Blade's official distribution (dev-c.com) and the ASI links against
-its SDK import library.
+This project builds on:
 
-Real-time collision detection: credit to Sol4ra. The live GTA collision reader
-(host/src/physics_level.*, rust/skatev-runtime/src/live.rs) is adapted for
-Legacy from Sol4ra's LS-Skate-LiveCollision (GTA V Enhanced), shared with
-SK8V by its author.
+Faith Runner (MIT License)
+  Copyright (c) 2026 Tanner. https://github.com/tnrjns/faith-runner
+  third_party/faith-runner/crates: faith_move, faith_anim and me_assets, copied from his repository.
+  faith_move is changed for GTA's hollow, detailed buildings: a vault needs a top above the wall;
+  ledge grabs and pull-ups need a clear way over the lip; a host can mark an obstacle to vault
+  right across (World::vault_across, car bonnets); wallclimbs can step out round small overhangs
+  (Tuning::overhang_step_out, off by default); springboards can launch off a step into a wall
+  (Tuning::springboard_into_walls, off by default), keeping the run-in speed for the wallclimb,
+  or off a step at a building's edge, such as a roof's parapet with at least 2 m of drop beyond it
+  (Tuning::springboard_into_air, off by default).
+  faith_anim has one change: a faster ladder climb (Tuning::ladder_climb_speed) speeds up the arms
+  by only its square root. me_assets is unchanged.
+  Every change: faithrunner-v/patches/faith-runner-gta-changes.patch. Licence: licenses/faith-runner-LICENSE.txt
 
-This product builds on the following third-party work.
+SK8V (Apache License 2.0)
+  Copyright 2026 becaring. https://github.com/becaring/SK8V
+  Used: rust/svwc (GTA collision bound decoding, unchanged); rust/skatev-runtime/src/live.rs
+  (copied into faithrunner-v, changed: glam instead of bevy_math, tests removed);
+  host/src/physics_level.cpp and game_probe.cpp (ported to Rust in faithrunner-v/src/level.rs);
+  host/src/pose_hook.cpp and the skeleton reading (ported to Rust in faithrunner-v/src/posehook.rs);
+  rust/skatev-runtime/src/ped.rs's retarget method and bone map (rewritten for Faith's skeleton in
+  faithrunner-v/src/retarget.rs). This project is not made or endorsed by SK8V's author.
+  Real-time collision detection: credit to Sol4ra. The live GTA collision reader is adapted by SK8V
+  from Sol4ra's LS-Skate-LiveCollision.
+  Licence: licenses/SK8V-LICENSE.txt; SK8V's own notice: licenses/SK8V-NOTICE.txt
+  The launcher's SK8V card shows SK8V's own media/sk8v.webp (Apache-2.0, becaring).
 
-Skate engine (Apache-2.0)
-  2010 Rust Rewrite Mashup, by chasmlol, a fork of IW4L by vladtrc.
-  https://github.com/chasmlol/2010-rust-rewrite-mashup
-  Copyright 2026 vladtrc; Skate engine by chasmlol.
-  Fetched at the commit pinned in upstreams.lock.json; patches/skate/ holds
-  SK8V's modifications to it. Its Skate 3 engine crates (skate-core,
-  skate-data, skate-host, skate-net) are compiled into SkateVRuntime.dll.
-
-Skate 3 HUD and asset pipeline (Apache-2.0 by grant)
-  skate-3-rust-engine HUD modules (apt_vm, apt_display, apt_movie, apt_text,
-  apt_scene, hud_runtime) and asset-pipeline exports, by chasmlol, used under
-  chasmlol's Apache-2.0 grant of 2026-10-07 at commit cb796893.
-  https://github.com/SK8-ENGINE/skate-3-rust-engine
-  rust/skate-hud compiles the HUD modules in place from the fetched upstream
-  (no donor source is copied into this repository); tools/convert-skate-data.py
-  runs the exports during setup. Later revisions of that repository are
-  GPL-3.0 and are used as reference only.
-
-EA-XMA audio decoder (LGPL-2.1-or-later)
-  rust/skate-xma is a port of FFmpeg 4.4's xmaframes / WMA Pro decoder
-  (libavcodec), Copyright the FFmpeg developers, https://ffmpeg.org. It builds
-  the separate program skate-xma.exe and is licensed under the GNU Lesser
-  General Public License 2.1 or later (rust/skate-xma/COPYING.LGPL), not
-  Apache-2.0.
-
-RAGE formats (Unlicense)
-  rage-formats, rpf-archive-rs, rage-cli and rage-render, by VIRUXE, released
-  into the public domain. https://github.com/VIRUXE
+Mirror's Edge
+  Faith's body, animations, textures and sounds come from the player's own Mirror's Edge install:
+  the launcher copies the 16 package files they're in from it into the player's own GTA V folder,
+  on the player's PC. None of it is in this repository or its releases.
 
 Rust crates
-  Each crate linked into a shipped binary keeps its own license; release
-  packages list them with their license texts in THIRD-PARTY-NOTICES.txt
-  (tools/third-party-notices.py).
+  Faith Runner V: glam, windows (Microsoft), rodio, lewton. The launcher: tao and wry (Tauri
+  Programme), ureq, zip, rfd, winreg, sha2, trash, serde and windows-sys. Each keeps its own MIT
+  and/or Apache-2.0 licence.

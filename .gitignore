@@ -1,51 +1,23 @@
 # Builds
-build/
 target/
 **/target/
-out/
-dist/
-tools/bin/
-# machine-local cargo config (tools/build-release.py: path remaps)
-/.cargo/
+target-*/
+release/out/
+*.part
 
-# Fetched sources and SDKs (tools/fetch-upstreams.ps1, tools/fetch-scripthookv.ps1)
-upstream/
-third_party/scripthookv/
-third_party/runtime/
-
-# World sidecars from a published release (BUILDING.md)
-/world/
-
-# Game data: never in this repository
-local/
-skate-data/
-*.xex
-*.iso
-*.rpf
-*.ybn
-*.ydr
-*.ydd
-*.yft
-*.ytd
-*.ymap
-*.ytyp
-
-# Logs and captures
+# Logs
 *.log
 *.dmp
-*.png
-!tools/board-wheel-icon.png
-*.jpg
-*.mp4
+
+# Game data: never in this repository (Mirror's Edge, Skate 3 and GTA V files come from the player's own copies)
+*.upk
+*.iso
+*.xex
+*.rpf
 
 # IDE / OS
 .vs/
 .vscode/
 .idea/
-*.user
-*.suo
-.DS_Store
 Thumbs.db
-
-# Python bytecode
-__pycache__/
+.DS_Store

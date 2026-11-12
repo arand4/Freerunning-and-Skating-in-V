@@ -1,0 +1,37 @@
+[package]
+name = "faithrunner-v"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Faith Runner's Mirror's Edge parkour movement in GTA V Legacy (step 1: movement only)"
+
+[lib]
+# Built as FaithRunnerV.dll, installed as FaithRunnerV.asi (ScriptHookV's ASI loader).
+name = "FaithRunnerV"
+crate-type = ["cdylib"]
+
+[dependencies]
+# Faith Runner (MIT, Copyright (c) 2026 Tanner): the movement, unchanged.
+faith_move = { path = "../third_party/faith-runner/crates/faith_move" }
+# SK8V (Apache-2.0, becaring): GTA collision bound decoding, unchanged.
+svwc = { path = "../rust/svwc" }
+# Faith Runner (MIT): Faith's first-person animation driver/rig and sound director, and the
+# Mirror's Edge package readers (body, animations, textures, sounds from the player's install).
+faith_anim = { path = "../third_party/faith-runner/crates/faith_anim" }
+me_assets = { path = "../third_party/faith-runner/crates/me_assets" }
+glam = "0.32"
+# Drawing Faith's arms and legs into GTA's frame (ScriptHookV's present callback).
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D_Fxc",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+] }
+# Faith's sounds (Ogg Vorbis from the player's install), on their own audio output.
+rodio = { version = "0.19", default-features = false, features = ["vorbis"] }
+
+[profile.release]
+panic = "unwind"
+debug = "line-tables-only"

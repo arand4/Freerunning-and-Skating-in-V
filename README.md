@@ -1,95 +1,97 @@
-![SK8V Gameplay](media/sk8v.webp)
+# Freerunning and Skating in V
 
-# SK8V
+**Mirror's Edge parkour and Skate 3 skating in GTA V Legacy story mode.** One launcher, two cards: install either one or both.
 
-**Skate 3 gameplay. GTA V's open world.**
+▶ [Watch the parkour demo](media/parkour.mp4)
 
+> **Beta:** things will break. Please report what you find in [Issues](../../issues), with the logs (see [Logs](#logs)).
 
-SK8V brings *Skate 3*'s Flick-It controls, board/skater physics, grinds, manuals, skitching, tricks, combos, bails, scoring, session markers, and Hall of Meat into **GTA V Legacy Story Mode**. Skate's gameplay runs alongside GTA's characters, traffic, weapons, radio, and world interactions. Skate 3’s own audio engine runs inside GTA’s mixer, so wheels sound different on every GTA surface. Things like concrete, asphalt, wood, metal, tile all sound different, and your wheels click over the cracks and seams in the pavement, with almost complete coverage.
+## What it is
+
+- **Faith Runner (parkour):** [Tanner](https://github.com/tnrjns/faith-runner)'s Mirror's Edge movement (run, wallrun, wallclimb, vault, ledge grab, pull-up, slide, roll, ladders) on GTA's real buildings, cars and props. Faith's first-person arms and legs (or your GTA character's own) and her sounds come from your own Mirror's Edge: Install copies the 16 files it needs (about 65 MB) into `GTA V\FaithRunnerV\MirrorsEdge`, so Mirror's Edge can be uninstalled afterwards.
+- **SK8V (skating):** [becaring](https://github.com/becaring/SK8V)'s Skate 3 controls and physics. It isn't part of this download: the launcher fetches becaring's newest release from his GitHub and runs his own setup, right inside the launcher, with your own Skate 3 disc.
+
+The launcher also checks for updates to both.
 
 ## Requirements
-- **Controller is Required**
-- **SSD is recommended for installation**
-- **Windows x64**, **GTA V Legacy 1.0.3889.0**, and **ScriptHookV v3889.0 / 1158.13** with its ASI loader. (https://www.dev-c.com/gtav/scripthookv/)
-- **A controller:** Xbox, or PlayStation (DualShock 4 / DualSense, USB or Bluetooth). Keyboard skating is not supported. On a PlayStation pad, Share (or the touchpad) is Back and Options is Start.
-- Your own Skate 3 Xbox 360 disc ISO or extracted disc folder (tested: title ID 454108E6, media ID 5C087C2C, no title update)
-- About **7 GB free** on your GTA drive for setup; roughly **2 GB** remains afterward.
 
-**Story Mode only.** GTA V Enhanced, GTA Online, and FiveM are not supported.
+- Windows 10 or 11 x64, **GTA V Legacy 1.0.3889.0** (Story Mode, BattlEye off). Not Enhanced, not Online.
+- [ScriptHookV](https://www.dev-c.com/gtav/scripthookv/) v3889.0 with its ASI loader (`dinput8.dll`).
+- **For parkour:** Mirror's Edge (2008) for PC (Steam, EA app or disc), installed while you install Faith Runner. Keyboard and mouse or a controller.
+- **For SK8V:** your own Skate 3 Xbox 360 disc image (ISO or extracted folder), a controller, an internet connection and about 7 GB free on the GTA drive during setup (about 2 GB stays). See [SK8V's requirements](https://github.com/becaring/SK8V#requirements).
 
 ## Install
 
-1. Download and extract the latest **SK8V release ZIP** from [Releases](../../releases/latest), **not** GitHub's Source code ZIP.
-2. Close GTA V and run **`SK8V Setup.cmd`**. (If your GTA installation is in a protected folder (Program Files, etc.) setup will offer to restart as administrator.)
-3. Select your Skate 3 disc, choose **Regular** or **Goofy** stance, and press **Install**. Setup detects your GTA V folder when possible.
-4. Launch GTA V Legacy **Story Mode with BattlEye disabled**. Select the **skateboard** in GTA's weapon wheel, then press `Y` to mount it.
+1. Download the zip from [Releases](../../releases) (not "Source code"), unzip it anywhere outside the GTA folder, and close GTA V.
+   Install ScriptHookV if you haven't: copy **both** `ScriptHookV.dll` and `dinput8.dll` from its `bin` folder into the GTA V folder.
+2. Run `Launcher.exe`. It finds GTA V and Mirror's Edge by itself when it can; **Change** picks another folder.
+3. Faith Runner card: **Install**. SK8V card: pick your Skate 3 disc and stance, then **Download & install**.
+4. Press **PLAY**.
 
-Setup prepares data from your copies of both games. It can download a local Python environment if needed, and rerunning it resumes interrupted preparation.
+Keep the launcher: open it again to get updates. Your parkour settings are kept.
 
-Command-line alternative (Python 3.11+, NumPy, Pillow):
+**Without the launcher window** (Faith Runner, from a command prompt in the unzipped folder, GTA closed):
 
-```powershell
-python tools/prepare.py --skate "<Skate 3.iso or folder>" --gta "<GTA V folder>" --stance Goofy --install --clean
+```
+Launcher.exe --install-parkour --gta "<GTA V folder>" --mirrors "<Mirror's Edge folder>"
 ```
 
-(from the extracted release folder; omit --stance for Regular).
+## Controls (Faith Runner)
 
-## Controls
+| Action | Keyboard and mouse | Controller |
+|---|---|---|
+| Parkour on / off | F8 | both sticks clicked together |
+| Parkour settings menu | hold F8 half a second | hold both sticks |
+| Move / look | W A S D / mouse | left stick / right stick |
+| Jump, wallrun, climb, grab | Space | A or LB |
+| Crouch, slide, roll, let go | Shift, Ctrl or C | B or LT |
+| Quick turn (180°) | Q | Y |
 
-**All regular skating controls are Skate 3's.** SK8V adds:
+SK8V's controls: see [its README](https://github.com/becaring/SK8V#controls).
 
-| Input | Action |
+## Known limits (beta)
+
+- Parkour and skating don't run at the same time: put the board away before pressing F8.
+- First person only for parkour.
+- No ziplines or swing poles (GTA has none to find).
+- A fall from about 20 m ends parkour with GTA's ragdoll (`LethalFall` in `FaithRunnerV.ini`).
+- Teleporting while either mode is on can drop you through the map: switch it off first.
+
+## Logs
+
+Parkour: `FaithRunnerV.log` in the GTA V folder. SK8V: `%LOCALAPPDATA%\SkateV`.
+
+## Uninstall (GTA closed)
+
+- **Faith Runner:** the **Remove** button on its card. By hand: delete `FaithRunnerV.asi`, `FaithRunnerV.ini` and the `FaithRunnerV` folder from the GTA V folder.
+- **SK8V:** see [Uninstall in SK8V's README](https://github.com/becaring/SK8V#uninstall).
+- ScriptHookV is left alone either way.
+
+## Building from source
+
+Needs [Rust](https://rustup.rs) and the Visual Studio C++ build tools. From the repository folder:
+
+```
+powershell -ExecutionPolicy Bypass -File release\build-release.ps1 -Version 0.1.0-beta
+```
+
+It builds `launcher` and `faithrunner-v` and makes the zip in `release\out`.
+
+| Folder | What it is |
 |---|---|
-| GTA weapon wheel → **Skateboard** | Enter Skate mode |
-| `Y` / hold `Y` | Mount or dismount / put the board away and return to GTA |
-| Keyboard `/` or controller `Back + LB` | Open SK8V menu |
-| `Back` / hold `Back` | Equip or holster a weapon / open weapon wheel when armed |
-| `LB` / `RB` when armed | Aim / fire |
-| Hold `LB` + D-pad left/right, gun holstered | Change radio station (Skate 3's layout) |
-| D-pad | Emotes, one per direction (set them in the SK8V menu) |
-| D-pad left/right, gun equipped | Change weapon |
-| Double-tap `X` on foot near a grabbable wall | GTA mantle, then return to Skate |
+| `launcher/` | The launcher (Rust, tao + wry) |
+| `faithrunner-v/` | Faith Runner V, the parkour ASI (Rust) |
+| `third_party/faith-runner/` | Tanner's movement, animation and Mirror's Edge readers, with the GTA changes |
+| `rust/svwc/` | becaring's GTA collision decoder from SK8V, unchanged |
+| `media/` | The launcher card video and SK8V's card picture |
+| `release/` | The release build script and the texts that go in the zip |
 
-Swimming switches to GTA automatically and returns to Skate afterward. **Hall of Meat is on by default** and can be disabled in the SK8V menu, alongside other gameplay settings.
+## Credits and licences
 
-### Unable to save settings in the menu?
+- **Faith Runner** by Tanner, MIT: https://github.com/tnrjns/faith-runner
+- **SK8V** by becaring, Apache-2.0: https://github.com/becaring/SK8V. This repository is a fork of SK8V; SK8V's own files live in his repository.
+- **Live GTA collision reading** by Sol4ra (LS-Skate-LiveCollision), as adapted by SK8V.
 
-1. Right-click your game install folder and select Properties.
-2. Click the Security tab and click Edit.
-3. Click Add, type your specific user account name (or less preferably, Everyone), then click Check Names and OK.
-4. Select the newly added user or group, check the box for Full control under the Allow column, then click Apply and OK
+This project's own code is MIT ([LICENSE](LICENSE)); [NOTICE](NOTICE) lists exactly which parts come from Faith Runner and SK8V and what was changed. It is an unofficial fan project, not made or endorsed by them, and unaffiliated with EA, DICE, Rockstar Games or Take-Two Interactive. It contains no Mirror's Edge, Skate 3 or GTA V code or data: everything comes from your own copies.
 
-### Known Limitations & Future Support
-
-- **Rockstar Editor:** Recording and playback are not currently functional with SK8V. Support is planned for a future update.
-
-- **Teleporting while skating:** Teleporting directly while Skate mode is active may cause the skater to fall through the map. Switch back to GTA control before teleporting, then resume skating at your destination.
-
-- **GTA V Enhanced:** SK8V currently supports GTA V Legacy only. Enhanced Edition compatibility is a long-term goal, but may require significant additional work and is not guaranteed.
-
-## Contributing
-
-SK8V doesn’t currently accept pull requests. Bug reports and feature requests go in issues, logs are appreciated!
-
-## Support Me
-[<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="40">](https://buymeacoffee.com/becaring) [<img src="https://storage.ko-fi.com/cdn/kofi3.png?v=3" height="36">](https://ko-fi.com/becaring)
-
-If you had fun with SK8V, a donation is NEVER required but always appreciated <3 
-
-## Uninstall
-
-With GTA V closed, remove these from its folder:
-
-- `SkateVLegacy.asi`, `SkateVRuntime.dll`, `SkateVLegacy.ini`, `SkateVLegacy.installed.json`
-- `SK8V/`
-- `update/x64/dlcpacks/skatev/`
-
-Logs and records are in `%LOCALAPPDATA%\SkateV` and can be deleted separately. ScriptHookV is left untouched.
-
-## Building from Source
-
-Run BOOTSTRAP.bat to build the code, then follow BUILDING.md to package a release. The baked world collision data is copied from a published release.
-
-## License
-
-Original SK8V code is [Apache-2.0](LICENSE); third-party components keep their own licenses and are credited in [NOTICE](NOTICE). SK8V is an unofficial fan project, unaffiliated with EA, Rockstar Games, or Take-Two Interactive. No GTA V or Skate 3 retail assets, executables, keys, or proprietary SDK redistributables are included; supply your own game copies.
+Coded with Claude (Anthropic's AI), through Claude Code.

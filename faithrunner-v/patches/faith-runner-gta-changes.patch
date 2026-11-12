@@ -1,0 +1,461 @@
+diff --git a/crates/faith_anim/src/driver.rs b/crates/faith_anim/src/driver.rs
+index d2f04f1..85c499d 100644
+--- a/crates/faith_anim/src/driver.rs
++++ b/crates/faith_anim/src/driver.rs
+@@ -931,7 +931,7 @@ impl Driver {
+                 MoveState::Climb { ladder, mv: Some(m), .. } if m.anim.is_some() => {
+                     let seq = climb_clip(ladder.pipe, m.anim.unwrap_or(0));
+                     let len = Self::length(arms, seq).unwrap_or(0.33);
+-                    let k = (m.t / m.dur.max(1e-3)).clamp(0.0, 1.0);
++                    let k = climb_clip_progress(c, &m);
+                     let time = if m.down { (1.0 - k) * len } else { k * len };
+                     let key = format!("{seq}#{}", if m.down { "down" } else { "up" });
+                     self.want(&key, Source::Driven { seq, time }, 0.1);
+@@ -1163,7 +1163,7 @@ impl Driver {
+                     MoveState::IntoClimb { t, entering: true, .. } | MoveState::ClimbExit { t, .. } => t,
+                     MoveState::Climb { mv: Some(m), .. } => {
+                         let len = Self::length(arms, seq).unwrap_or(0.33);
+-                        let k = (m.t / m.dur.max(1e-3)).clamp(0.0, 1.0);
++                        let k = climb_clip_progress(c, &m);
+                         if m.down { (1.0 - k) * len } else { k * len }
+                     }
+                     MoveState::LedgeHang { .. } => c.shimmy.map_or(*time, |sh| sh.t),
+@@ -2259,3 +2259,12 @@ mod tests {
+         assert!(jump == turn_end + 1, "{anims:?}");
+     }
+ }
++
++/// How far through its clip a ladder step is. Faith Runner V: climbing up faster than Mirror's
++/// Edge (Tuning::ladder_climb_speed s), the arms only speed up by sqrt(s), so a quick climb
++/// doesn't look frantic: each step shows most of the reach (1 / sqrt(s) of the clip).
++fn climb_clip_progress(c: &Controller, m: &faith_move::ClimbStep) -> f32 {
++    let k = (m.t / m.dur.max(1e-3)).clamp(0.0, 1.0);
++    let s = c.tuning.ladder_climb_speed;
++    if m.down || s <= 1.0 { k } else { (k / s.sqrt()).min(1.0) }
++}
+diff --git a/crates/faith_move/src/climb.rs b/crates/faith_move/src/climb.rs
+index 87764fe..0d2ceaa 100644
+--- a/crates/faith_move/src/climb.rs
++++ b/crates/faith_move/src/climb.rs
+@@ -423,7 +423,7 @@ impl Controller {
+                 return;
+             }
+             let (anim, n) = if l.pipe && last - step > 1 { (if left { 3 } else { 2 }, 2) } else { (if left { 1 } else { 0 }, 1) };
+-            let speed = n as f32 * if l.pipe { uu(64.0) } else { uu(96.0) };
++            let speed = n as f32 * if l.pipe { uu(64.0) } else { uu(96.0) } * self.tuning.ladder_climb_speed.max(0.1);
+             let to = self.step_at(&l, step + n).y;
+             mv = Some(ClimbStep { t: 0.0, from: y, to, dur: (to - y).abs() / speed, anim: Some(anim), down: false });
+             self.events.push(Event::ClimbStep);
+diff --git a/crates/faith_move/src/controller.rs b/crates/faith_move/src/controller.rs
+index ace84a0..eb429f3 100644
+--- a/crates/faith_move/src/controller.rs
++++ b/crates/faith_move/src/controller.rs
+@@ -478,6 +478,8 @@ pub struct Controller {
+     /// (TdMove_WallRun.ConsequtiveWallruns).
+     chain_wallruns: u32,
+     climbed_this_air: bool,
++    /// How far a wallclimb has stepped out from the wall round overhangs (Tuning::overhang_step_out).
++    wallclimb_standoff: f32,
+     last_wall_normal: Option<Vec3>,
+     regrab_cooldown: f32,
+     turn: Option<Turn>,
+@@ -599,6 +601,7 @@ impl Controller {
+             last_jump_at: spawn,
+             chain_wallruns: 0,
+             climbed_this_air: false,
++            wallclimb_standoff: 0.0,
+             last_wall_normal: None,
+             regrab_cooldown: 0.0,
+             turn: None,
+@@ -1181,7 +1184,8 @@ impl Controller {
+             self.try_stand(world);
+         }
+         // Walking into something knee-high: step up onto it (when the host turns it on).
+-        if tu.auto_step_up && !self.crouched && input.move_axis.y > 0.2 && self.try_auto_step_up(world) {
++        // (Not with jump pressed or held: that's for a springboard or vault.)
++        if tu.auto_step_up && !self.crouched && input.move_axis.y > 0.2 && !input.jump_held && self.jump_buffer <= 0.0 && self.try_auto_step_up(world) {
+             return;
+         }
+ 
+@@ -1353,7 +1357,15 @@ impl Controller {
+             }
+             d += 0.02;
+         }
+-        let Some((spacing, top)) = found else { return false };
++        let (spacing, top) = match found {
++            Some(f) => f,
++            None => {
++                if tu.springboard_into_walls && self.springboard_into_wall(world, face, n, step_top, max_look, speed) {
++                    return true;
++                }
++                return tu.springboard_into_air && self.springboard_into_air(world, face, n, step_top, speed, fwd);
++            }
++        };
+         let rise = top - self.feet.y;
+         if (spacing - tu.springboard_step_spacing).abs() >= tu.springboard_slack
+             || rise < tu.springboard_lo
+@@ -1378,6 +1390,91 @@ impl Controller {
+         true
+     }
+ 
++    /// Faith Runner V: a step with a wall going on up right behind it. One foot on the step, then
++    /// up and in at the wall: the jump carries her into a wallclimb from the step's height.
++    fn springboard_into_wall(&mut self, world: &dyn World, face: Vec3, n: Vec3, step_top: f32, max_look: f32, speed: f32) -> bool {
++        let tu = self.tuning.clone();
++        // A wall face (not a top) 1 m above the step, within reach behind it.
++        let half = Vec3::new(tu.half_width * 0.6, 0.05, tu.half_width * 0.6);
++        let from = Vec3::new(face.x, step_top + 1.0, face.z) + n * 0.1;
++        let Some(h) = world.sweep(half, from, -n * (max_look + 0.6)) else { return false };
++        if h.normal.y.abs() > 0.3 {
++            return false;
++        }
++        // The foot goes on the step between its edge and the wall (steps are often shallow).
++        let wall = h.t * (max_look + 0.6) - 0.1;
++        let foot = Body { half_width: tu.half_width * 0.5, height: tu.crouch_height };
++        let d = (wall - foot.half_width - 0.02).min(tu.half_width + 0.05);
++        if d < 0.05 {
++            return false;
++        }
++        let plant = Vec3::new(face.x, step_top + 0.01, face.z) - n * d;
++        if !world.is_free(&foot.aabb(plant)) {
++            return false;
++        }
++        let saved = speed.max(uu_per_s(200.0));
++        // Keep the run-in speed toward the wall: the wallclimb it turns into takes its height
++        // from how fast you came in (WallClimbingAddXY) as well as from the rise, so the step
++        // boosts the climb instead of resetting it to a standing one.
++        let launch = -n * saved.max(1.5) + Vec3::Y * tu.springboard_up;
++        self.springboard = Some(SpringRunIn { face, n, plant, launch, speed: saved, t: 0.0 });
++        self.springboard_run_in(0.0, world);
++        true
++    }
++
++    /// Faith Runner V: a step with nothing rising behind it and room to fly on (a roof's
++    /// parapet, a low wall at a drop, a planter): one foot on its top, then Mirror's Edge's own
++    /// springboard launch out over whatever is beyond, instead of vaulting it or stopping.
++    fn springboard_into_air(&mut self, world: &dyn World, face: Vec3, n: Vec3, step_top: f32, speed: f32, fwd: Vec3) -> bool {
++        let tu = self.tuning.clone();
++        let foot = Body { half_width: tu.half_width * 0.5, height: tu.crouch_height };
++        let d = foot.half_width + 0.05;
++        // A top to put the foot on: level with the step's edge from the edge to past the foot
++        // (not a thin rail or a sloping coping).
++        let (lo, hi) = (self.feet.y, self.feet.y + tu.springboard_hi + 0.1);
++        for probe in [0.05, d, d + foot.half_width - 0.02] {
++            if (column_top(world, face - n * probe, lo, hi) - step_top).abs() > 0.08 {
++                return false;
++            }
++        }
++        // A building's edge: the step ends within 1.5 m (a parapet, not a platform), and past its
++        // far side the ground drops away at least springboard_into_air_drop below your feet.
++        let mut back = None;
++        let mut b = d;
++        while b <= 1.5 {
++            if column_top(world, face - n * b, lo, hi) < step_top - 0.05 {
++                back = Some(b);
++                break;
++            }
++            b += 0.05;
++        }
++        let Some(back) = back else { return false };
++        let floor = self.feet.y - tu.springboard_into_air_drop;
++        for past in [0.3, 0.8, 1.5] {
++            if column_top(world, face - n * (back + past), floor - 0.5, step_top) > floor {
++                return false;
++            }
++        }
++        let plant = Vec3::new(face.x, step_top + 0.01, face.z) - n * d;
++        // Room to stand up on it, and nothing in the way of the launch for the first 1.5 m.
++        let stand = Body { half_width: tu.half_width, height: tu.stand_height };
++        if !world.is_free(&stand.aabb(plant)) {
++            return false;
++        }
++        let half = Vec3::new(tu.half_width * 0.9, tu.stand_height * 0.4, tu.half_width * 0.9);
++        let from = plant + Vec3::Y * (tu.stand_height * 0.5 + 0.2);
++        let out = Vec3::new(fwd.x, 0.0, fwd.z).normalize_or_zero() * 1.5 + Vec3::Y * 0.4;
++        if world.sweep(half, from, out).is_some() {
++            return false;
++        }
++        // The launch of an ordinary springboard (see try_springboard).
++        let saved = speed.max(uu_per_s(200.0));
++        let launch = fwd * (saved + tu.springboard_xy_add).max(tu.springboard_xy_min) + Vec3::Y * tu.springboard_up;
++        self.springboard = Some(SpringRunIn { face, n, plant, launch, speed: saved, t: 0.0 });
++        self.springboard_run_in(0.0, world);
++        true
++    }
++
+     /// Run in to 120 uu before the step at 1.2 x your speed (input ignored), then the two
+     /// foot plants (StepTime1 + StepTime2) as one traverse, then launch.
+     fn springboard_run_in(&mut self, dt: f32, world: &dyn World) {
+@@ -1535,7 +1632,7 @@ impl Controller {
+             if let Some(hit) = trace_wall(world, body, self.feet, fwd, uu(8.0), tu.stand_height - uu(64.0)) {
+                 let (n, gap) = (hit.n, hit.gap);
+                 // The same wall carries on up to WallClimbingMinWallHeight.
+-                let tall = trace_wall(world, body, self.feet, -n, gap + 0.1, tu.wallclimb_min_wall_height - 0.02)
++                let tall = trace_wall(world, body, self.feet, -n, gap + 0.1 + tu.overhang_step_out, tu.wallclimb_min_wall_height - 0.02)
+                     .is_some_and(|h| h.n.dot(n) > 0.9);
+                 if fwd.dot(-n) >= tu.wallclimb_max_angle_deg.to_radians().cos() && tall {
+                     // TdMove_WallClimb.ReachedWall: the boost grows with how far past run speed
+@@ -1547,6 +1644,7 @@ impl Controller {
+                     self.vel = Vec3::Y * (4.0 * height * tu.wallclimb_gravity).sqrt();
+                     self.feet += -n * gap;
+                     self.climbed_this_air = true;
++                    self.wallclimb_standoff = 0.0;
+                     self.state = State::WallClimb { normal: n, t: 0.0 };
+                     self.jump_buffer = 0.0;
+                     self.events.push(Event::WallClimbStart);
+@@ -2128,7 +2226,7 @@ impl Controller {
+             self.grab_ledge(n, 0.0, top, world);
+             return;
+         }
+-        let still_wall = probe_wall(world, body, self.feet, -n, 0.12, 0.2, body.height - 0.1).is_some();
++        let still_wall = probe_wall(world, body, self.feet, -n, 0.12 + self.wallclimb_standoff, 0.2, body.height - 0.1).is_some();
+         if self.vel.y <= 0.0 || !still_wall {
+             self.state = State::Air;
+             return;
+@@ -2137,11 +2235,46 @@ impl Controller {
+         // (0, 0, -WallClimbingGravity), with no drag on the climb itself
+         // (WallClimbingVerticalFriction only slows sideways motion along the wall face).
+         let vy = self.vel.y - tu.wallclimb_gravity * dt;
+-        self.vel = -n * 0.3 + Vec3::Y * vy;
++        if tu.overhang_step_out > 0.0 {
++            self.step_round_overhangs(dt, n, vy, world);
++        }
++        let inward = if self.wallclimb_standoff > 0.0 { 0.0 } else { 0.3 };
++        self.vel = -n * inward + Vec3::Y * vy;
+         self.state = State::WallClimb { normal: n, t };
+         self.integrate(dt, world, false);
+     }
+ 
++    /// Faith Runner V: on a wallclimb, hug the wall's profile. Back in toward the wall where
++    /// there's room above; out round an overhang (up to Tuning::overhang_step_out) that the
++    /// head is about to hit.
++    fn step_round_overhangs(&mut self, dt: f32, n: Vec3, vy: f32, world: &dyn World) {
++        let body = self.body();
++        let clear_above = |feet: Vec3, rise: f32| {
++            let a = body.aabb(feet);
++            world.is_free(&a) && world.sweep(a.size() * 0.5, a.center(), Vec3::Y * rise).is_none_or(|h| h.normal.y >= -0.3)
++        };
++        let rise = vy.max(0.0) * dt + 0.03;
++        if self.wallclimb_standoff > 0.0 {
++            let back = self.wallclimb_standoff.min(1.5 * dt);
++            if clear_above(self.feet - n * back, rise + 0.1) {
++                self.feet -= n * back;
++                self.wallclimb_standoff -= back;
++            }
++        }
++        if clear_above(self.feet, rise) {
++            return;
++        }
++        let mut d = 0.05;
++        while d <= self.tuning.overhang_step_out + 1e-4 {
++            if clear_above(self.feet + n * d, 0.3) {
++                self.feet += n * d;
++                self.wallclimb_standoff += d;
++                return;
++            }
++            d += 0.05;
++        }
++    }
++
+     fn wallclimb_turned(&mut self, dt: f32, n: Vec3, t: f32, _input: &Input, world: &dyn World) {
+         let tu = self.tuning.clone();
+         let t = t + dt;
+@@ -2225,6 +2358,10 @@ impl Controller {
+             if end_crouched && !world.is_free(&crouch.aabb(to)) {
+                 return;
+             }
++            // Faith Runner V: not through a wall that goes on up past the lip (hollow shells).
++            if !crate::world::clear_over_lip(world, crouch, self.feet, to, ledge_y, tu.crouch_height) {
++                return;
++            }
+             self.crouched = end_crouched;
+             self.state = State::Traverse(Traverse {
+                 kind: TraverseKind::PullUp,
+diff --git a/crates/faith_move/src/stepup.rs b/crates/faith_move/src/stepup.rs
+index b6f9d9b..c2c9a1c 100644
+--- a/crates/faith_move/src/stepup.rs
++++ b/crates/faith_move/src/stepup.rs
+@@ -63,7 +63,7 @@ impl Controller {
+         if world.sweep(half, lift + Vec3::Y * half.y, end - lift).is_some() {
+             return false;
+         }
+-        let saved = self.vel * 0.5;
++        let saved = self.vel * tu.step_up_keep;
+         let rate = uu(200.0).max(horiz(saved).length());
+         let dur = (end - self.feet).length() / rate;
+         self.state = State::StepUp { t: 0.0, from: self.feet, to: end, dur, saved };
+diff --git a/crates/faith_move/src/tuning.rs b/crates/faith_move/src/tuning.rs
+index 5ab6211..e3bb563 100644
+--- a/crates/faith_move/src/tuning.rs
++++ b/crates/faith_move/src/tuning.rs
+@@ -121,6 +121,9 @@ pub struct Tuning {
+     pub wallclimb_max_angle_deg: f32,
+     /// ME: MinWallHeight = 180
+     pub wallclimb_min_wall_height: f32,
++    /// Faith Runner V (not in ME, whose walls are flat): on a wallclimb, step out round
++    /// overhangs up to this deep (window sills, trims) instead of stopping under them. 0 = off.
++    pub overhang_step_out: f32,
+     /// ME: TdMove_WallClimb180TurnJump.JumpOffZHeight = 250
+     pub wallkick_height: f32,
+     /// ME: TdMove_WallClimb180TurnJump.JumpPushAwaySpeed = 400
+@@ -292,6 +295,20 @@ pub struct Tuning {
+     pub springboard_xy_min: f32,
+     /// ME: StepTime1 + StepTime2 = 0.2 + 0.2: onto the step, then onto the top
+     pub springboard_step_time: f32,
++    /// Faith Runner V (not in ME): a wall that goes on up right behind the step counts too:
++    /// one foot on the step, then up at the wall (a wallclimb that starts higher). Off in ME.
++    pub springboard_into_walls: bool,
++    /// Faith Runner V (not in ME): a step with nothing behind it but open space (a roof's
++    /// parapet) springboards you out into the air instead of being vaulted. Off in ME.
++    pub springboard_into_air: bool,
++    /// How far the ground beyond that step must drop below your feet (the end of a building).
++    pub springboard_into_air_drop: f32,
++    /// Faith Runner V (not in ME): how much faster than Mirror's Edge she climbs up a ladder
++    /// (1 = the game's 96 uu/s).
++    pub ladder_climb_speed: f32,
++    /// How much of her speed a step-up keeps (ME's StepUp: half). Faith Runner V keeps more, so
++    /// GTA's kerbs and clutter don't brake her.
++    pub step_up_keep: f32,
+ 
+     // ---------------------------------------------------------------- balance
+     /// ME: TdMove_Balance.SpeedModifier = 0.34 (x GroundSpeed)
+@@ -410,6 +427,7 @@ impl Default for Tuning {
+             wallclimb_add_z_max_speed: uu(320.0),
+             wallclimb_max_angle_deg: 33.0,
+             wallclimb_min_wall_height: uu(180.0),
++            overhang_step_out: 0.0,
+             wallkick_height: uu(250.0),
+             wallkick_out: uu(400.0),
+             wallkick_window: 0.6,
+@@ -487,6 +505,11 @@ impl Default for Tuning {
+             springboard_lo: uu(80.0),
+             springboard_hi: uu(148.0),
+             springboard_check_time: 1.0,
++            springboard_into_walls: false,
++            springboard_into_air: false,
++            springboard_into_air_drop: 2.0,
++            ladder_climb_speed: 1.0,
++            step_up_keep: 0.5,
+             springboard_run_in: uu(120.0),
+             springboard_up: uu(950.0),
+             springboard_xy_add: uu(-100.0),
+diff --git a/crates/faith_move/src/vault.rs b/crates/faith_move/src/vault.rs
+index 8fc1f4d..d64eced 100644
+--- a/crates/faith_move/src/vault.rs
++++ b/crates/faith_move/src/vault.rs
+@@ -10,7 +10,7 @@
+ use glam::Vec3;
+ 
+ use crate::tuning::Tuning;
+-use crate::world::{column_top, tops_below, trace_wall, Body, World};
++use crate::world::{tops_below, trace_wall, Body, World};
+ 
+ /// Unreal units to metres.
+ const fn uu(v: f32) -> f32 {
+@@ -160,7 +160,10 @@ pub fn plan(world: &dyn World, tu: &Tuning, body: Body, feet: Vec3, vel: Vec3, f
+         return None;
+     }
+     let inside = hit.at - n * 0.02;
+-    let top = column_top(world, inside, feet.y + y, feet.y + uu(192.0) + 0.05);
++    // No top found under the highest vault: the wall goes on up (in UE3 the trace starts
++    // inside the solid and hits at once; triangle shells have no inside, so say so here).
++    // Faith Runner V change: without this, tall hollow walls (GTA's) read as knee-high.
++    let top = *tops_below(world, inside, 0.01, feet.y + uu(192.0) + 0.05, feet.y + y).first()?;
+     let height = (top - feet.y) * 100.0;
+     if !(0.0..=192.0).contains(&height) {
+         return None;
+@@ -207,6 +210,12 @@ pub fn plan(world: &dyn World, tu: &Tuning, body: Body, feet: Vec3, vel: Vec3, f
+     };
+     let mut onto = onto;
+     let mut end = if onto { onto_end } else { Vec3::new(end.x, top, end.z) };
++    // Faith Runner V: the host says this is something to vault right across (a car's bonnet):
++    // land beyond its far side. The floor, room and clear-path checks below still apply.
++    if let Some(d) = world.vault_across(Vec3::new(ledge.x, top - 0.05, ledge.z) - n * 0.05, dir) {
++        onto = false;
++        end = Vec3::new(ledge.x, top, ledge.z) + dir * (d + RADIUS + 0.25);
++    }
+     // FindVaultFloor: a floor under the end, from 32 above the ledge down to 32 (onto) or
+     // 240 (over) below it. Landing no more than 64 below the ledge counts as onto.
+     let drop = if onto { uu(32.0) } else { uu(240.0) };
+@@ -229,6 +238,11 @@ pub fn plan(world: &dyn World, tu: &Tuning, body: Body, feet: Vec3, vel: Vec3, f
+     let lip = Vec3::new(ledge.x, top + 0.05, ledge.z) + dir * 0.05 + Vec3::Y * crouch_half.y;
+     let above = Vec3::new(end.x, lip.y, end.z);
+     let across = above - lip;
++    // Faith Runner V: a sweep doesn't see a face it starts inside, so a tall wall right behind a
++    // shallow sill (shallower than her) went unnoticed and she vaulted into the wall.
++    if world.overlaps(&crate::world::Aabb::new(lip - crouch_half, lip + crouch_half)) {
++        return None;
++    }
+     let down = Vec3::new(end.x, end.y + 0.02, end.z) + Vec3::Y * crouch_half.y - above;
+     if world.sweep(crouch_half, lip, across).is_some() || (down.y < -0.01 && world.sweep(crouch_half, above, down).is_some()) {
+         return None;
+diff --git a/crates/faith_move/src/world.rs b/crates/faith_move/src/world.rs
+index d3c3984..c734197 100644
+--- a/crates/faith_move/src/world.rs
++++ b/crates/faith_move/src/world.rs
+@@ -107,6 +107,12 @@ pub trait World {
+     fn is_free(&self, region: &Aabb) -> bool {
+         !self.overlaps(region)
+     }
++
++    /// Faith Runner V: whether the obstacle at `at` is one to vault right across (a car's
++    /// bonnet, say), and if so how far its far side is along `dir`. None: the usual rules.
++    fn vault_across(&self, _at: Vec3, _dir: Vec3) -> Option<f32> {
++        None
++    }
+ }
+ 
+ /// Two worlds as one: a host's still collision and what moves in it (doors, gates, drawbridges),
+@@ -131,6 +137,10 @@ impl World for Layered<'_> {
+     fn fixtures(&self) -> &[Fixture] {
+         self.still.fixtures()
+     }
++
++    fn vault_across(&self, at: Vec3, dir: Vec3) -> Option<f32> {
++        self.moving.vault_across(at, dir).or_else(|| self.still.vault_across(at, dir))
++    }
+ }
+ 
+ /// How far a box may be inside something and still only be touching it.
+@@ -330,6 +340,10 @@ impl World for WithDoors<'_> {
+     fn fixtures(&self) -> &[Fixture] {
+         self.world.fixtures()
+     }
++
++    fn vault_across(&self, at: Vec3, dir: Vec3) -> Option<f32> {
++        self.world.vault_across(at, dir)
++    }
+ }
+ 
+ /// Triangles at any angle: what a game engine's static geometry is. Sweeps step the box along
+@@ -740,6 +754,17 @@ pub fn column_top(world: &dyn World, p: Vec3, y0: f32, y1: f32) -> f32 {
+     tops_below(world, p, 0.01, y1, y0).first().copied().unwrap_or(y0)
+ }
+ 
++/// Faith Runner V: whether a crouched body fits across from above `from` to above `to`, just
++/// over a lip at height `lip`.
++pub fn clear_over_lip(world: &dyn World, body: Body, from: Vec3, to: Vec3, lip: f32, crouch_height: f32) -> bool {
++    let half = Vec3::new(body.half_width * 0.9, crouch_height * 0.45, body.half_width * 0.9);
++    let y = lip + 0.03 + half.y;
++    let a = Vec3::new(from.x, y, from.z);
++    let b = Vec3::new(to.x, y, to.z);
++    // A roof sloping up from the lip is fine: only a steep face (a wall) is in the way.
++    (b - a).length() < 1e-4 || world.sweep(half, a, b - a).is_none_or(|h| h.normal.y >= 0.7)
++}
++
+ /// Find a climbable top edge on the wall with outward normal `n` that the body is up against,
+ /// whose height above `feet.y` is within `[lo, hi]`. Returns the world-space height of the
+ /// ledge top. Like TdPawn's FindLedge it traces down just inside the wall; it needs room to
+@@ -767,6 +792,12 @@ pub fn find_ledge(
+         if !world.is_free(&stand) {
+             continue;
+         }
++        // Faith Runner V: and a clear way over the lip to there. Triangle shells have no
++        // inside, so "room on top" alone also passes inside a building whose wall goes on up
++        // above a sill: she'd grab the sill and pull up into the building.
++        if !clear_over_lip(world, body, feet, inside, t, crouch_height) {
++            continue;
++        }
+         // Hands/head space on our side of the wall, just above the lip.
+         let mut hands = me;
+         hands.min.y = t.max(feet.y + 0.1);

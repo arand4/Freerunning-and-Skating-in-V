@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launcher</title>
+<style>
+:root {
+  --bg: #0b0b0f; --panel: #15151b; --panel2: #1c1c24; --line: #2a2a34; --text: #f2f2f5; --muted: #9a9aa8; --faint: #6c6c78;
+  --parkour: #ff3b30; --skate: #ff7a00; --ok: #34c759; --warn: #ffb020; --bad: #ff453a;
+  --radius: 18px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: radial-gradient(1200px 600px at 0% 0%, rgba(255,59,48,.10), transparent 60%),
+              radial-gradient(1200px 600px at 100% 0%, rgba(255,122,0,.10), transparent 60%), var(--bg);
+  color: var(--text); font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; user-select: none; overflow: hidden;
+}
+.app { height: 100%; display: grid; grid-template-rows: auto auto 1fr auto; gap: 14px; padding: 18px 22px 18px; }
+button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+
+/* header */
+header { display: flex; align-items: center; gap: 12px; }
+.brand { font: 700 26px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.5px; }
+.pill { font-size: 11px; font-weight: 700; letter-spacing: .8px; padding: 3px 8px; border-radius: 99px; background: #fff; color: #000; }
+.ver { color: var(--faint); font-size: 12.5px; }
+header .spacer { flex: 1; }
+.ghost { background: transparent; border: 1px solid var(--line); padding: 7px 13px; border-radius: 10px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; transition: .15s; }
+.ghost:hover:not(:disabled) { border-color: #444452; color: var(--text); background: rgba(255,255,255,.03); }
+.spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: r .8s linear infinite; display: none; }
+.checking .spin { display: inline-block; }
+@keyframes r { to { transform: rotate(360deg); } }
+.headerr { color: var(--warn); font-size: 12px; max-width: 360px; text-align: right; }
+
+/* GTA strip */
+.strip { display: flex; align-items: center; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px 10px 16px; min-width: 0; }
+.strip .label { font-weight: 600; white-space: nowrap; }
+.path { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; direction: rtl; text-align: left; }
+.chips { display: flex; gap: 6px; flex-wrap: nowrap; }
+.chip { font-size: 11.5px; padding: 3px 9px; border-radius: 99px; background: var(--panel2); color: var(--muted); white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); display: inline-block; }
+.chip.ok i { background: var(--ok); } .chip.bad i { background: var(--bad); } .chip.warn i { background: var(--warn); }
+.chip.bad { color: #ffb4ae; } .chip.warn { color: #ffd88a; }
+.small { padding: 6px 12px; border-radius: 9px; background: var(--panel2); font-size: 12.5px; }
+.small:hover:not(:disabled) { background: #26262f; }
+
+/* cards */
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-height: 0; }
+.card { position: relative; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; min-height: 0; }
+.card::before { content: ""; position: absolute; inset: 0; border-radius: var(--radius); pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.02); }
+.hero { position: relative; height: 200px; flex: none; overflow: hidden; background: linear-gradient(135deg, #1d1d25, #101015); }
+.hero img, .hero video { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 6s ease; }
+.card:hover .hero img, .card:hover .hero video { transform: scale(1.04); }
+.hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05) 30%, rgba(21,21,27,.92) 92%, var(--panel)); }
+.hero .tag { position: absolute; z-index: 1; top: 14px; left: 16px; font-size: 11px; font-weight: 800; letter-spacing: 1.4px; padding: 4px 10px; border-radius: 99px; color: #fff; }
+.parkour .tag { background: var(--parkour); } .skate .tag { background: var(--skate); }
+.hero .title { position: absolute; z-index: 1; left: 18px; bottom: 12px; right: 18px; }
+.hero h2 { margin: 0; font: 700 25px/1.1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.3px; }
+.hero p { margin: 3px 0 0; color: #c9c9d3; font-size: 13px; }
+.body { padding: 4px 18px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow: auto; }
+.credit { color: var(--faint); font-size: 12px; }
+.inputs { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; font-size: 12.5px; color: #d8d8e0; background: var(--panel2); border-radius: 99px; padding: 4px 12px 4px 10px; margin-top: 8px; }
+.inputs svg { color: var(--muted); flex: none; }
+.inputs svg + svg, .inputs svg:not(:first-child) { margin-left: 4px; }
+.inputs.need { color: #ffd2a6; background: rgba(255,122,0,.12); }
+.inputs.need svg { color: var(--skate); }
+.credit a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--faint); cursor: pointer; }
+.status { display: flex; align-items: center; gap: 10px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(52,199,89,.15); }
+.dot.up { background: var(--warn); box-shadow: 0 0 0 4px rgba(255,176,32,.15); }
+.dot.off { background: #55555f; }
+.status b { font-weight: 600; }
+.status .sub { color: var(--muted); font-size: 12.5px; }
+.field { display: grid; grid-template-columns: 112px 1fr auto; align-items: center; gap: 10px; background: var(--panel2); border-radius: 11px; padding: 7px 7px 7px 12px; }
+.field .k { color: var(--muted); font-size: 12px; }
+.field .v { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.field .v.none { color: var(--warn); direction: ltr; }
+.field .two { display: flex; gap: 6px; }
+.seg { justify-self: start; display: inline-flex; background: #101015; border-radius: 9px; padding: 3px; gap: 2px; }
+.seg button { background: transparent; padding: 4px 12px; border-radius: 7px; color: var(--muted); font-size: 12.5px; }
+.seg button.on { background: #2b2b35; color: var(--text); }
+.note { color: var(--muted); font-size: 12.5px; }
+.note.whats { color: var(--muted); }
+.progress { background: var(--panel2); border-radius: 12px; padding: 11px 12px; display: grid; gap: 8px; }
+.progress .row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.progress .row b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar { height: 6px; background: #0f0f14; border-radius: 99px; overflow: hidden; position: relative; }
+.bar i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; transition: width .3s ease; }
+.parkour .bar i { background: var(--parkour); } .skate .bar i { background: var(--skate); }
+.bar.ind i { width: 30% !important; animation: slide 1.2s ease-in-out infinite; }
+@keyframes slide { 0% { left: -30%; } 100% { left: 100%; } }
+.progress .detail { color: var(--faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg { border-radius: 12px; padding: 10px 12px; font-size: 13px; display: flex; gap: 10px; align-items: flex-start; white-space: pre-line; }
+.msg.good { background: rgba(52,199,89,.10); color: #b8f0c6; }
+.msg.err { background: rgba(255,69,58,.10); color: #ffc2bd; }
+.msg .x { margin-left: auto; background: transparent; color: inherit; opacity: .6; padding: 0 4px; }
+.actions { margin-top: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.primary { padding: 10px 18px; border-radius: 11px; font-weight: 650; color: #fff; transition: .15s; }
+.parkour .primary { background: var(--parkour); } .skate .primary { background: var(--skate); }
+.primary:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+.primary small { font-weight: 500; opacity: .8; margin-left: 6px; }
+.second { padding: 10px 14px; border-radius: 11px; background: var(--panel2); color: var(--text); }
+.second:hover:not(:disabled) { background: #26262f; }
+.link { background: transparent; color: var(--muted); font-size: 12.5px; padding: 6px 6px; }
+.link:hover { color: var(--text); }
+.actions .spacer { flex: 1; }
+pre.log { margin: 0; max-height: 140px; overflow: auto; background: #0e0e13; border-radius: 10px; padding: 10px; font: 11.5px/1.4 Consolas, monospace; color: #a8a8b5; white-space: pre-wrap; user-select: text; }
+
+/* footer */
+footer { display: flex; align-items: center; gap: 10px; }
+.play { padding: 13px 34px; border-radius: 14px; font: 700 16px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: .3px; color: #fff;
+  background: linear-gradient(90deg, var(--parkour), var(--skate)); box-shadow: 0 8px 30px rgba(255,90,20,.25); transition: .15s; }
+.play:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 34px rgba(255,90,20,.35); }
+footer .hint { color: var(--faint); font-size: 12.5px; }
+footer .hint a { color: var(--muted); cursor: pointer; border-bottom: 1px dotted var(--faint); }
+footer .hint a:hover { color: var(--text); }
+.ghost.guide { color: #e2e2e8; }
+.ghost.guide svg { color: #ff9f0a; flex: none; }
+/* a card showing its disc and stance rows keeps everything in view by shrinking its picture */
+.hero { transition: height .25s ease; }
+.card:has(.field ~ .field) .hero { height: 120px; }
+.body .note a { color: var(--text); border-bottom: 1px dotted var(--muted); cursor: pointer; }
+.sheet .content p { margin: 8px 0; }
+.sheet details { border-top: 1px solid var(--line); }
+.sheet details:last-child { border-bottom: 1px solid var(--line); }
+.sheet summary { list-style: none; cursor: pointer; padding: 12px 2px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.sheet summary::-webkit-details-marker { display: none; }
+.sheet summary::before { content: ""; width: 7px; height: 7px; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(-45deg); transition: transform .15s; flex: none; margin-left: 2px; }
+.sheet details[open] > summary::before { transform: rotate(45deg); }
+.sheet summary:hover::before { border-color: var(--text); }
+.sheet .sec { padding: 0 2px 12px 19px; }
+.sheet .sec ul { padding-left: 18px; margin: 6px 0; }
+.sheet .content a { color: var(--text); border-bottom: 1px dotted var(--muted); cursor: pointer; }
+.chip.link { cursor: pointer; border: 0; font: inherit; font-size: 11.5px; }
+.chip.link:hover { filter: brightness(1.25); }
+.chip.link u { text-decoration: none; border-bottom: 1px dotted currentColor; }
+footer .spacer { flex: 1; }
+
+/* release notes */
+.modal { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; padding: 30px; backdrop-filter: blur(4px); }
+.modal.open { display: flex; }
+.sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; max-width: 680px; width: 100%; max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.sheet header { padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.sheet header h3 { margin: 0; font-size: 17px; }
+.sheet .content { padding: 6px 20px 18px; overflow: auto; user-select: text; color: #d7d7df; }
+.sheet .content h4 { margin: 16px 0 6px; font-size: 14px; color: var(--text); }
+.sheet .content li { margin: 4px 0; }
+.sheet .content code { background: var(--panel2); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+@media (max-width: 960px) { .chips .chip:nth-child(n+3) { display: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand" id="brand">&nbsp;</div>
+    <span class="pill">BETA</span>
+    <span class="ver" id="ver"></span>
+    <div class="spacer"></div>
+    <span class="headerr" id="checkErr"></span>
+    <button class="ghost guide" onclick="showStart([])"><svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><circle cx="10" cy="10" r="8.6" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="9" y="5" width="2" height="6.6" rx="1" fill="currentColor"/><circle cx="10" cy="14.4" r="1.2" fill="currentColor"/></svg><span>Guide</span></button>
+    <button class="ghost" id="checkBtn" onclick="send('check')"><span class="spin"></span><span>Check for updates</span></button>
+  </header>
+
+  <div class="strip">
+    <span class="label">GTA V Legacy</span>
+    <span class="path" id="gtaPath"></span>
+    <div class="chips" id="gtaChips"></div>
+    <button class="small" id="gtaPick" onclick="send('pick','gta')">Change</button>
+  </div>
+
+  <div class="cards">
+    <section class="card parkour">
+      <div class="hero">
+        <img src="img/parkour.png" onerror="this.style.display='none'" alt="">
+        <span class="tag">PARKOUR</span>
+        <div class="title"><h2>Faith Runner</h2><p>Mirror's Edge parkour on GTA's real rooftops, by Tanner</p></div>
+      </div>
+      <div class="body" id="parkour"></div>
+    </section>
+    <section class="card skate">
+      <div class="hero">
+        <img src="img/skate.webp" onerror="this.style.display='none'" alt="">
+        <span class="tag">SKATE</span>
+        <div class="title"><h2>SK8V</h2><p>Skate 3 in GTA V Story Mode, by becaring</p></div>
+      </div>
+      <div class="body" id="sk8v"></div>
+    </section>
+  </div>
+
+  <footer>
+    <button class="play" id="play" onclick="send('play')">PLAY</button>
+    <span class="hint" id="playHint"></span>
+    <div class="spacer"></div>
+    <button class="link" onclick="send('open','readme')">Read me</button>
+    <button class="link" onclick="send('open','notice')">Credits &amp; licences</button>
+    <button class="link" onclick="send('open','gta')">GTA folder</button>
+  </footer>
+</div>
+
+<div class="modal" id="notes" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="sheet">
+    <header style="display:flex;align-items:center;gap:10px"><h3 id="notesTitle"></h3><div style="flex:1"></div>
+      <button class="small" id="notesGit" onclick="send('url', S.sk8v.url)">Open on GitHub</button>
+      <button class="small" onclick="document.getElementById('notes').classList.remove('open')">Close</button></header>
+    <div class="content" id="notesBody"></div>
+  </div>
+</div>
+
+<script>
+let S = null;
+const uiState = { parkour: false, sk8v: false };
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const mb = n => n ? Math.round(n / 1048576) + ' MB' : '';
+function send(cmd, value) { window.ipc.postMessage(JSON.stringify({ cmd, value: value ?? '' })); }
+function toggleLog(k) { uiState[k] = !uiState[k]; render(); }
+
+function md(text) {   // just enough Markdown for release notes
+  const lines = esc(text).split(/\r?\n/); let html = '', list = false;
+  for (let l of lines) {
+    l = l.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<code>$1</code>').replace(/\[(.+?)\]\((.+?)\)/g, '$1');
+    if (/^\s*[-*] /.test(l)) { if (!list) { html += '<ul>'; list = true; } html += '<li>' + l.replace(/^\s*[-*] /, '') + '</li>'; continue; }
+    if (list) { html += '</ul>'; list = false; }
+    if (/^#+ /.test(l)) html += '<h4>' + l.replace(/^#+ /, '') + '</h4>'; else if (l.trim()) html += '<p>' + l + '</p>';
+  }
+  return html + (list ? '</ul>' : '');
+}
+function showNotes() { $('notesTitle').textContent = 'SK8V ' + S.sk8v.latest + (S.sk8v.date ? '  ·  ' + S.sk8v.date : ''); $('notesBody').innerHTML = md(S.sk8v.notes); $('notesGit').style.display = ''; $('notes').classList.add('open'); }
+// The game's guide: each section folds open with its arrow. `show` lists the sections to open.
+function showStart(show = ['start']) {
+  $('notesTitle').textContent = 'Guide';
+  $('notesGit').style.display = 'none';
+  const sec = (id, title, body) => `<details id="g-${id}" ${show.includes(id) ? 'open' : ''}><summary>${title}</summary><div class="sec">${body}</div></details>`;
+  $('notesBody').innerHTML = `
+    <p>For now, Faith Runner, SK8V and ScriptHookV all need GTA V Legacy <b>1.0.3889.0</b>. A game update replaces <code>GTA5.exe</code>, and none of them will run again until each gets an update of its own.</p>`
+  + sec('scripthook', 'Installing ScriptHookV and its ASI loader', `
+    <p>Both mods run through ScriptHookV, and it takes <b>two files</b>: <code>ScriptHookV.dll</code> and an <b>ASI loader</b>. Without a loader, GTA starts normally but loads no mods at all.</p>
+    <ul><li>Download ScriptHookV from its <a onclick="send('url','https://www.dev-c.com/gtav/scripthookv/')">official page (dev-c.com)</a>, the version for 1.0.3889.0.</li>
+    <li>Open the zip's <code>bin</code> folder and copy both <code>ScriptHookV.dll</code> and <code>dinput8.dll</code> (ScriptHookV's ASI loader) into your GTA V folder, next to <code>GTA5.exe</code>. The other files in the zip aren't needed.</li>
+    <li>Already using another ASI loader, such as Ultimate ASI Loader (it can be named <code>dinput8.dll</code>, <code>version.dll</code>, <code>winmm.dll</code> and more)? Then keep that one and skip ScriptHookV's <code>dinput8.dll</code>: <b>one loader is enough</b>. Two can load every mod twice. The launcher finds loaders whatever they're named.</li>
+    <li>Use a <b>64-bit</b> loader. A <code>dinput8.dll</code> taken from another game (GTA IV, San Andreas and other 32-bit games) looks the same but GTA V skips it, and nothing loads.</li>
+    <li>Back here, the chip at the top turns green.</li></ul>`)
+  + sec('start', 'Starting GTA without this launcher', `
+    <p>PLAY just starts <code>PlayGTAV.exe</code> from your GTA folder with <code>-nobattleye</code>: BattlEye has to be off, or it blocks ScriptHookV and both mods. A shortcut does the same:</p>
+    <ul><li>In your GTA V folder, right-click <code>PlayGTAV.exe</code> &gt; Send to &gt; Desktop (create shortcut).</li>
+    <li>Right-click the new shortcut &gt; Properties. In <b>Target</b>, after the closing quote, add a space and <code>-nobattleye</code>, so it ends like <code>…\\PlayGTAV.exe" -nobattleye</code>. Press OK.</li></ul>`)
+  + sec('updates', 'Keeping the game from updating', `
+    <p>Turn updates off in <b>both</b> places: the store you bought it from (Steam or Epic) <b>and</b> the Rockstar Games Launcher, because either one can update the game by itself.</p>
+    <ul><li><b>Steam:</b> Library &gt; right-click GTA V Legacy &gt; Properties &gt; Updates &gt; Automatic updates: <b>Only update this game when I launch it</b>. Then start the game with PLAY or the shortcut, <b>never Steam's Play button</b>: that installs any waiting update before the game starts. (Steam's Launch Options box would also take <code>-nobattleye</code>, but it only works through that same Play button.)</li>
+    <li><b>Epic Games:</b> Library &gt; GTA V &gt; ⋯ &gt; Manage &gt; turn <b>Auto-update</b> off.</li>
+    <li><b>Rockstar Games Launcher:</b> Settings &gt; My installed games &gt; Grand Theft Auto V &gt; turn <b>Enable automatic updates</b> off.</li>
+    <li>Don't use Steam's <b>Verify integrity of game files</b>: it brings in the newest version too.</li></ul>
+    <p>While you're still on 1.0.3889.0, it's worth keeping a backup of the files an update replaces (see the next part). It's the only easy way back.</p>`)
+  + sec('revert', 'Undoing a game update', `
+    <p><b>With a backup (best).</b> Updates replace only a few files. Copy these from your GTA V folder to somewhere safe while the game is still on 1.0.3889.0 (about 2.5 GB):</p>
+    <ul><li><code>GTA5.exe</code>, <code>GTA5_BE.exe</code>, <code>PlayGTAV.exe</code>, <code>GTAVLauncher.exe</code>, <code>GTAVLanguageSelect.exe</code>, <code>title.rgl</code>, <code>versioninfo.txt</code>, <code>installscript.vdf</code></li>
+    <li><code>update\\update.rpf</code> and <code>update\\update2.rpf</code></li>
+    <li><code>x64\\metadata.dat</code> and the <code>x64\\data\\errorcodes</code> folder</li></ul>
+    <p>To undo an update: close GTA, the Rockstar Games Launcher and Steam/Epic, copy the backup back into the GTA V folder and choose <b>Replace</b>. Then remove what the update added: any new file in <code>update</code> (like an <code>update3.rpf</code>) and any new folder in <code>update\\x64\\dlcpacks</code> dated the day of the update. Leave <code>skatev</code> (SK8V's) and your <code>mods</code> folder alone: an update doesn't touch those.</p>
+    <p><b>Without a backup, on Steam.</b> Steam can still download the old files itself:</p>
+    <ul><li>On <a onclick="send('url','https://steamdb.info/app/271590/depots/')">SteamDB's depot page for GTA V</a>, find the manifests from before the update (the 1.0.3889.0 build) for each part that changed.</li>
+    <li>Open Steam's console (press Win+R, type <code>steam://open/console</code>, Enter) and for each part type <code>download_depot 271590 &lt;depot&gt; &lt;manifest&gt;</code>.</li>
+    <li>Steam says where it saved them (a <code>content\\app_271590\\depot_…</code> folder inside Steam). Copy those files over your GTA V folder, then remove what the update added, as above.</li></ul>
+    <p><b>Epic or Rockstar Launcher copies</b> can't download old versions: a backup is the only way back.</p>`);
+  $('notes').classList.add('open');
+  const first = show.map(id => document.getElementById('g-' + id)).find(Boolean);
+  if (first && show[0] !== 'scripthook') first.scrollIntoView({ block: 'start' });
+}
+
+function progress(t) {
+  const ind = t.pct == null;
+  return `<div class="progress"><div class="row"><b>${esc(t.phase)}</b><span>${ind ? '' : Math.floor(t.pct) + '%'}</span></div>
+    <div class="bar ${ind ? 'ind' : ''}"><i style="width:${ind ? 30 : Math.max(2, t.pct)}%"></i></div>
+    ${t.detail ? `<div class="detail">${esc(t.detail)}</div>` : ''}</div>`;
+}
+function messages(c, key) {
+  let h = '';
+  if (c.error === 'ADMIN') h += `<div class="msg err"><span>Windows only lets administrators change this GTA V folder.</span><button class="small" onclick="send('elevate')">Restart as administrator</button></div>`;
+  else if (c.error) h += `<div class="msg err"><span>${esc(c.error)}</span><button class="x" onclick="send('clear','${key}')">✕</button></div>`;
+  if (c.message) h += `<div class="msg good"><span>${esc(c.message)}</span><button class="x" onclick="send('clear','${key}')">✕</button></div>`;
+  return h;
+}
+function field(label, value, emptyText, buttons) {
+  return `<div class="field"><span class="k">${label}</span><span class="v ${value ? '' : 'none'}" title="${esc(value)}">${value ? '‎' + esc(value) : esc(emptyText)}</span><div class="two">${buttons}</div></div>`;
+}
+function logBlock(c, key) {
+  if (!c.log || !c.log.length) return '';
+  return uiState[key] ? `<pre class="log" id="log-${key}">${esc(c.log.slice(-200).join('\n'))}</pre>` : '';
+}
+
+const PAD = `<svg viewBox="0 0 24 16" width="19" height="13" aria-hidden="true"><path d="M6.5 1.5h11a5 5 0 0 1 4.9 6l-.9 4.4a2.6 2.6 0 0 1-4.4 1.3L14.6 11H9.4l-2.5 2.2a2.6 2.6 0 0 1-4.4-1.3L1.6 7.5a5 5 0 0 1 4.9-6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 5v4M5 7h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="16.5" cy="5.6" r="1" fill="currentColor"/><circle cx="18.4" cy="8" r="1" fill="currentColor"/></svg>`;
+const KEYS = `<svg viewBox="0 0 24 16" width="19" height="13" aria-hidden="true"><rect x="1" y="2" width="22" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h1.5M9 6h1.5M13 6h1.5M17.5 6H19M7 10h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+function renderParkour() {
+  const p = S.parkour, g = S.gta, busy = S.busy, task = p.task;
+  const blocked = busy || g.running || !g.ok;
+  let status;
+  if (p.installed === 'unknown') status = `<span class="dot ok"></span><div><b>Installed</b><div class="sub">A different build from this release (${esc(p.available)})</div></div>`;
+  else if (p.installed && p.update) status = `<span class="dot up"></span><div><b>Update ready</b><div class="sub">${esc(p.installed)} → ${esc(p.available)}</div></div>`;
+  else if (p.installed) status = `<span class="dot ok"></span><div><b>Installed</b><div class="sub">Version ${esc(p.installed)}</div></div>`;
+  else status = `<span class="dot off"></span><div><b>Not installed</b><div class="sub">${p.available ? 'Version ' + esc(p.available) + ' ready to install' : 'No Faith Runner files found next to the launcher'}</div></div>`;
+  const src = p.source === 'github' ? `The mod itself comes from <a onclick="send('url','https://github.com/${esc(p.repo)}')">github.com/${esc(p.repo)}</a>` : 'The mod itself comes with this launcher';
+  const meOk = p.mirrorsOk || p.mirrorsCopied;
+  let primary;
+  if (!p.installed) primary = `<button class="primary" ${blocked || !meOk || !p.available ? 'disabled' : ''} onclick="send('parkourInstall')">Install</button>`;
+  else if (p.installed === 'unknown') primary = `<button class="second" ${blocked || !meOk ? 'disabled' : ''} onclick="send('parkourInstall')">Replace with ${esc(p.available)}</button>`;
+  else if (p.update) primary = `<button class="primary" ${blocked || !meOk ? 'disabled' : ''} onclick="send('parkourInstall')">Update to ${esc(p.available)}</button>`;
+  else primary = `<button class="second" ${blocked || !meOk ? 'disabled' : ''} onclick="send('parkourInstall')">Reinstall</button>`;
+  $('parkour').innerHTML = `
+    <div class="inputs">${PAD}Controller or ${KEYS}keyboard and mouse</div>
+    <div class="credit">Faith Runner by Tanner, <a onclick="send('url','https://github.com/tnrjns/faith-runner')">github.com/tnrjns</a> (MIT), brought into GTA V with SK8V's collision reading (becaring, Sol4ra). Faith's body, animations and sounds come from your own Mirror's Edge: Install copies the 16 files it needs (65 MB) into the GTA V folder, so Mirror's Edge can be uninstalled afterwards. ${src}.</div>
+    <div class="status">${status}</div>
+    ${field("Mirror's Edge", p.mirrorsOk ? p.mirrors : '', p.mirrorsCopied ? "Not needed any more: Faith's files are in the GTA V folder" : p.mirrors ? 'That folder has no Faith files in it' : 'Not found on this PC', `<button class="small" ${busy ? 'disabled' : ''} onclick="send('pick','mirrors')">Change</button>`)}
+    ${task ? progress(task) : ''}
+    ${messages(p, 'parkour')}
+    ${!task && !p.installed ? '<div class="note">Installs in a second. In story mode, tap F8 (or click both sticks) to switch Faith Runner on; hold it for the settings menu.</div>' : ''}
+    <div class="actions">${task ? '' : primary}
+      ${p.installed && !task ? `<button class="link" ${blocked ? 'disabled' : ''} onclick="send('parkourRemove')">Remove</button>` : ''}
+      <div class="spacer"></div>
+      ${p.installed ? `<button class="link" onclick="send('open','parkourIni')">Settings file</button><button class="link" onclick="send('open','parkourLog')">Log</button>` : ''}
+    </div>`;
+}
+
+function renderSk8v() {
+  const k = S.sk8v, g = S.gta, busy = S.busy, task = k.task;
+  const blocked = busy || g.running || !g.ok;
+  const known = k.installed && k.installed !== 'unknown';
+  let status, needDisc = false, primary = '', extra = '';
+  if (!k.latest && !k.installed) status = `<span class="dot off"></span><div><b>Not installed</b><div class="sub">${S.checking ? "Checking SK8V's GitHub…" : "Couldn't reach SK8V's GitHub yet"}</div></div>`;
+  else if (!k.installed) {
+    status = `<span class="dot off"></span><div><b>Not installed</b><div class="sub">Latest release ${esc(k.latest)}${k.date ? ' · ' + esc(k.date) : ''}</div></div>`;
+    needDisc = true;
+    const size = k.downloaded ? '' : `<small>${mb(k.fullSize)}</small>`;
+    primary = `<button class="primary" ${blocked || !k.disc || !k.latest ? 'disabled' : ''} onclick="send('sk8vSetup')">${k.downloaded ? 'Install' : 'Download &amp; install'}${size}</button>`;
+  } else if (k.installed === 'unknown') {
+    // Not a release this launcher knows: an older SK8V or a fork (GTAxSkate and others). Always left alone:
+    // a fork's own files are unknown, so the launcher can't swap it cleanly. Switching is the player's job.
+    status = `<span class="dot ok"></span><div><b>Installed: a different build</b><div class="sub">Not a SK8V release this launcher knows: an older SK8V, or a fork such as GTAxSkate. It's left as it is, and Faith Runner works alongside it.</div></div>`;
+    extra += `<div class="note">Want becaring's own SK8V instead? Uninstall this build first, the way its maker describes (forks can add files of their own), then open the launcher again: this card will offer a clean install. Becaring's list of SK8V's files is under "Uninstall" in <a onclick="send('url','https://github.com/becaring/SK8V#uninstall')">his README</a>.</div>`;
+  } else if (k.update && k.canPatch) {
+    status = `<span class="dot up"></span><div><b>Update ready</b><div class="sub">${esc(k.installed)} → ${esc(k.filesTag || k.latest)}</div></div>`;
+    primary = `<button class="primary" ${blocked ? 'disabled' : ''} onclick="send('sk8vPatch')">Update<small>${mb(k.updateSize) || 'small download'}</small></button>`;
+  } else if (k.update) {
+    status = `<span class="dot up"></span><div><b>Update needs setup</b><div class="sub">${known ? esc(k.installed) + ' → ' : ''}${esc(k.latest)} · your Skate 3 disc is needed again</div></div>`;
+    needDisc = true;
+    primary = `<button class="primary" ${blocked || !k.disc ? 'disabled' : ''} onclick="send('sk8vSetup')">Update<small>${k.downloaded ? '' : mb(k.fullSize)}</small></button>`;
+  } else {
+    const newer = k.latest && known && k.latest !== k.installed;
+    status = `<span class="dot ok"></span><div><b>Installed</b><div class="sub">Version ${esc(k.installed)}${!k.latest ? '' : newer ? ' · ' + esc(k.latest) + ' only changed setup: nothing to install' : ' · up to date'}</div></div>`;
+    needDisc = uiState.rerun;
+    primary = uiState.rerun ? `<button class="primary" ${blocked || !k.disc ? 'disabled' : ''} onclick="send('sk8vSetup')">Run setup again<small>${k.downloaded ? '' : mb(k.fullSize)}</small></button>`
+                         : `<button class="second" ${busy ? 'disabled' : ''} onclick="uiState.rerun=true;render()">Run setup again…</button>`;
+  }
+  if (needDisc && !task) {
+    extra += field('Skate 3 disc', k.disc, 'Pick your Xbox 360 disc image', `<button class="small" ${busy ? 'disabled' : ''} onclick="send('pick','disc')">ISO…</button><button class="small" ${busy ? 'disabled' : ''} onclick="send('pick','discFolder')">Folder…</button>`);
+    extra += `<div class="field"><span class="k">Stance</span><div class="seg">${['Regular', 'Goofy'].map(s => `<button class="${k.stance === s ? 'on' : ''}" onclick="send('stance','${s}')">${s}</button>`).join('')}</div><span></span></div>`;
+    extra += `<div class="note">Needs about 7 GB free on the GTA drive while it sets up (about 2 GB stays). Setup takes several minutes${k.pythonReady ? '' : " and also fetches the Python it runs on (31 MB, from python.org)"}. If it stops, press the button again and it picks up where it left off.</div>`;
+  }
+  $('sk8v').innerHTML = `
+    <div class="inputs need">${PAD}Controller required (Xbox or PlayStation): no keyboard skating</div>
+    <div class="credit">SK8V by becaring, <a onclick="send('url','https://github.com/becaring')">github.com/becaring</a> (Apache-2.0), downloaded straight from <a onclick="send('url','https://github.com/${esc(k.repo)}')">his GitHub</a> and set up from your own Skate 3. Not part of this mod.</div>
+    <div class="status">${status}</div>
+    ${extra}
+    ${task ? progress(task) : ''}
+    ${messages(k, 'sk8v')}
+    ${logBlock(k, 'sk8v')}
+    <div class="actions">${task ? `<button class="second" onclick="send('cancel')">Stop</button>` : primary}
+      <div class="spacer"></div>
+      ${k.log && k.log.length ? `<button class="link" onclick="toggleLog('sk8v')">${uiState.sk8v ? 'Hide details' : 'Details'}</button>` : ''}
+      ${k.notes ? `<button class="link" onclick="showNotes()">What's new in ${esc(k.latest)}</button>` : ''}
+      ${k.installed ? `<button class="link" onclick="send('open','sk8vLogs')">Logs</button>` : ''}
+    </div>`;
+  const l = $('log-sk8v'); if (l) l.scrollTop = l.scrollHeight;
+}
+
+function render() {
+  if (!S) return;
+  document.title = S.name;
+  $('brand').textContent = S.name; $('ver').textContent = S.version;
+  $('checkBtn').classList.toggle('checking', S.checking); $('checkBtn').disabled = S.checking;
+  $('checkErr').textContent = S.checkError || '';
+  const g = S.gta;
+  $('gtaPath').textContent = g.path ? '‎' + g.path : 'Not found: pick your GTA V folder';
+  $('gtaPath').title = g.path;
+  const chip = (cls, text) => `<span class="chip ${cls}"><i></i>${esc(text)}</span>`;
+  $('gtaChips').innerHTML = !g.ok ? chip('bad', 'No GTA5.exe here')
+    : (g.versionOk ? chip('ok', 'Version ' + g.version)
+        : `<button class="chip bad link" title="How to get back to 1.0.3889.0" onclick="showStart(['revert','updates'])"><i></i>Version ${esc(g.version)}: needs 1.0.3889.0 · <u>how to fix</u></button>`)
+      + (!g.scripthook || !g.asiLoaders.length
+        ? `<button class="chip bad link" title="${g.scripthook && g.asiLoaders32.length ? esc(g.asiLoaders32.join(', ')) + ' is an ASI loader for 32-bit games (like GTA IV): GTA V skips it. Use ScriptHookV\'s own dinput8.dll.' : 'ScriptHookV.dll and an ASI loader (ScriptHookV\'s is dinput8.dll) both go in the GTA V folder'}" onclick="showStart(['scripthook'])"><i></i>${!g.scripthook ? 'No ScriptHookV' : g.asiLoaders32.length ? 'ASI loader is for 32-bit games' : 'No ASI loader'} · <u>how to fix</u></button>`
+        : g.asiLoaders.length > 1
+        ? `<button class="chip warn link" title="${esc(g.asiLoaders.join(' and '))} can all load mods. One is enough: more can load a mod twice." onclick="showStart(['scripthook'])"><i></i>ScriptHookV · ${g.asiLoaders.length} ASI loaders</button>`
+        : `<span class="chip ok" title="ASI loader: ${esc(g.asiLoaders[0])}"><i></i>ScriptHookV</span>`)
+      + (g.running ? chip('warn', 'GTA is running') : '');
+  $('gtaPick').disabled = S.busy;
+  renderParkour(); renderSk8v();
+  const anything = S.parkour.installed || S.sk8v.installed;
+  $('play').disabled = !g.ok || g.running || S.busy || !anything;
+  $('playHint').innerHTML = g.running ? 'GTA V is running.' : S.busy ? 'Working…' : !anything ? 'Install Faith Runner or SK8V first.'
+    : `<a onclick="showStart()">Story Mode, BattlEye off.</a>`;
+}
+window.onState = s => { S = s; render(); };
+// Each card's picture is the first of images\parkour.* / skate.* that exists: a video (mp4, webm: muted,
+// looped) or an animated or still image (webp, gif, png, jpg). The window's own browser engine (WebView2,
+// part of Windows) plays all of them, so no format adds anything to the launcher: only the file size counts.
+// Without a local file, a card can stream its video from the web (window.STREAM, set by the launcher:
+// the parkour card plays media/parkour.mp4 straight from the mod's GitHub, nothing is saved). Offline,
+// the card just keeps its plain background.
+const showVideo = (img, url) => {
+  const v = Object.assign(document.createElement('video'), { src: url, autoplay: true, muted: true, loop: true, playsInline: true, preload: 'auto' });
+  v.addEventListener('canplay', () => { img.replaceWith(v); v.play(); }, { once: true });
+};
+for (const [card, name] of [['.parkour', 'parkour'], ['.skate', 'skate']]) {
+  (async () => {
+    const img = document.querySelector(card + ' .hero img');
+    for (const ext of ['mp4', 'webm', 'webp', 'gif', 'png', 'jpg']) {
+      const url = `img/${name}.${ext}`;
+      try { if (!(await fetch(url, { method: 'HEAD' })).ok) continue; } catch { continue; }
+      if (ext === 'mp4' || ext === 'webm') showVideo(img, url);
+      else if (!img.src.endsWith(url)) { img.style.display = ''; img.src = url; }
+      return;
+    }
+    const remote = (window.STREAM || {})[name];
+    if (remote) showVideo(img, remote);
+  })();
+}
+send('ready');
+</script>
+</body>
+</html>

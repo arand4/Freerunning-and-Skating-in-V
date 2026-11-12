@@ -1,0 +1,53 @@
+@NAME@ @VERSION@
+Mirror's Edge parkour and Skate 3 skating in GTA V Legacy story mode.
+An unofficial fan project, unaffiliated with EA, DICE, Rockstar Games or Take-Two Interactive.
+It contains no Mirror's Edge, Skate 3 or GTA V code or data.
+
+This product builds on:
+
+Faith Runner (MIT License)
+  Copyright (c) 2026 Tanner. https://github.com/tnrjns/faith-runner
+  The movement (crates/faith_move) is used with changes for GTA's hollow, detailed buildings
+  (patches/faith-runner-gta-changes.patch): a vault needs a top above the wall; ledge grabs and
+  pull-ups need a clear way over the lip; a host can mark an obstacle to vault right across
+  (World::vault_across, car bonnets); wallclimbs can step out round small overhangs
+  (Tuning::overhang_step_out, off by default); springboards can launch off a step into a wall
+  (Tuning::springboard_into_walls, off by default), keeping the run-in speed for the wallclimb,
+  or off a step at a building's edge, such as a roof's parapet with at least 2 m of drop beyond it
+  (Tuning::springboard_into_air, off by default).
+  Also used: crates/faith_anim (Faith's first-person animation, body placement, camera and
+  sound director), with one change: a faster ladder climb (Tuning::ladder_climb_speed) speeds up
+  the arms by only its square root; and crates/me_assets (Mirror's Edge package readers), unchanged.
+  Full licence text: parkour\LICENSE-faith-runner.txt; the changes: parkour\faith-runner-gta-changes.patch
+
+SK8V (Apache License 2.0)
+  Copyright 2026 becaring. https://github.com/becaring/SK8V
+  Used: rust/svwc (GTA collision bound decoding, unchanged); rust/skatev-runtime/src/live.rs
+  (copied, changed: glam instead of bevy_math, tests removed); host/src/physics_level.cpp and
+  game_probe.cpp (ported to Rust in src/level.rs); host/src/pose_hook.cpp and the skeleton reading
+  (ported to Rust in src/posehook.rs); rust/skatev-runtime/src/ped.rs's retarget method and
+  bone map (rewritten for Faith's skeleton in src/retarget.rs). Those parts are in parkour\FaithRunnerV.asi (Faith Runner V). @NAME@ is not made or endorsed by
+  SK8V's author.
+  Real-time collision detection: credit to Sol4ra. The live GTA collision reader is adapted
+  by SK8V from Sol4ra's LS-Skate-LiveCollision.
+  Full licence text: parkour\LICENSE-SK8V.txt; SK8V's own notice: parkour\NOTICE-SK8V.txt
+
+Mirror's Edge
+  Faith's body, animations, textures and sounds come from the player's own Mirror's Edge
+  install: the launcher copies the 16 package files they're in from it into the player's own
+  GTA V folder, on the player's PC. None of it is included in this download.
+
+Rust crates
+  glam, windows (Microsoft), rodio, lewton and their dependencies keep their own MIT/Apache-2.0
+  licences.
+
+SK8V itself
+  Not included. The launcher downloads becaring's own release from https://github.com/becaring/SK8V
+  and runs his setup tools from it unchanged (tools\get-python.ps1, tools\prepare.py), showing their
+  progress in its own window; or, for returning players, copies the two files from his update zip,
+  as his release notes say. SK8V's name is used only to say what that card installs and where it comes from.
+
+The launcher
+  Rust, with tao and wry (Tauri Programme, Apache-2.0/MIT), ureq, zip, rfd, winreg, sha2, trash,
+  serde and windows-sys, each under its own MIT and/or Apache-2.0 licence. The SK8V card shows
+  SK8V's own media/sk8v.webp (Apache-2.0, becaring).
