@@ -9,6 +9,7 @@ param(
   [string]$Name = 'Freerunning and Skating in V',
   [string]$Version = '0.1.0-beta',
   [string]$ParkourRepo = 'arand4/Freerunning-and-Skating-in-V',
+  [string]$Support = 'https://ko-fi.com/arand4',
   [switch]$NoCompile
 )
 $ErrorActionPreference = 'Stop'
@@ -42,7 +43,7 @@ New-Item -ItemType Directory -Force $out | Out-Null
 
 # The launcher. The parkour card streams media/parkour.mp4 from $ParkourRepo; the SK8V card shows SK8V's own picture.
 Copy-Item $exe "$out\Launcher.exe"
-[IO.File]::WriteAllText("$out\launcher.json", (@{ name = $Name; version = $Version; parkourRepo = $ParkourRepo; sk8vRepo = 'becaring/SK8V' } | ConvertTo-Json), [Text.Encoding]::ASCII)
+[IO.File]::WriteAllText("$out\launcher.json", (@{ name = $Name; version = $Version; parkourRepo = $ParkourRepo; sk8vRepo = 'becaring/SK8V'; support = $Support } | ConvertTo-Json), [Text.Encoding]::ASCII)
 New-Item -ItemType Directory -Force "$out\images" | Out-Null
 Copy-Item (Join-Path $repo 'media\sk8v.webp') "$out\images\skate.webp"
 

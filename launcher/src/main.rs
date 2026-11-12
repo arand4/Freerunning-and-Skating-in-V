@@ -46,10 +46,13 @@ struct Config {
     sk8v_repo: String,
     /// Where the parkour card's video comes from. Empty = media/parkour.mp4 in `parkour_repo` on GitHub.
     parkour_video: String,
+    /// A donation page (Ko-fi etc.): shown as a small "Support" link in the footer when set.
+    support: String,
 }
 impl Default for Config {
     fn default() -> Self {
-        Config { name: "LS Flow".into(), version: "0.1.0-beta".into(), parkour_repo: String::new(), sk8v_repo: "becaring/SK8V".into(), parkour_video: String::new() }
+        Config { name: "LS Flow".into(), version: "0.1.0-beta".into(), parkour_repo: String::new(), sk8v_repo: "becaring/SK8V".into(),
+            parkour_video: String::new(), support: String::new() }
     }
 }
 impl Config {
@@ -1013,6 +1016,8 @@ fn main() {
     // card streams its video straight from the mod's GitHub (nothing is saved on the PC).
     let images = dir.join("images");
     let stream = ctx.app.lock().unwrap().cfg.parkour_video_url().unwrap_or_default();
+    let support = ctx.app.lock().unwrap().cfg.support.trim().to_string();
+    let support = if support.starts_with("https://") { support } else { String::new() };
     let ipc_ctx = ctx.clone();
     let webview = WebViewBuilder::new()
         .with_background_color((12, 12, 16, 255))
@@ -1027,7 +1032,7 @@ fn main() {
             let status = if body.is_empty() { 404 } else { 200 };
             Response::builder().status(status).header(CONTENT_TYPE, kind).body(body).unwrap()
         })
-        .with_initialization_script(&format!("window.STREAM = {};", json!({ "parkour": stream })))
+        .with_initialization_script(&format!("window.STREAM = {}; window.SUPPORT = {};", json!({ "parkour": stream }), json!(support)))
         .with_ipc_handler(move |req: Request<String>| on_message(&ipc_ctx, req.body()))
         .with_devtools(cfg!(debug_assertions))
         .with_url("app://localhost/")

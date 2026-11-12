@@ -198,6 +198,7 @@ footer .spacer { flex: 1; }
     <button class="link" onclick="send('open','readme')">Read me</button>
     <button class="link" onclick="send('open','notice')">Credits &amp; licences</button>
     <button class="link" onclick="send('open','gta')">GTA folder</button>
+    <button class="link" id="support" hidden onclick="send('url', window.SUPPORT)" title="Never required, always appreciated">Support ☕</button>
   </footer>
 </div>
 
@@ -427,6 +428,7 @@ for (const [card, name] of [['.parkour', 'parkour'], ['.skate', 'skate']]) {
     if (remote) showVideo(img, remote);
   })();
 }
+if (window.SUPPORT) $('support').hidden = false;
 send('ready');
 </script>
 </body>
