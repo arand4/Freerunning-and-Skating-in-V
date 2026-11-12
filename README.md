@@ -4,8 +4,6 @@
 
 **Mirror's Edge parkour and Skate 3 skating in GTA V Legacy story mode.** One launcher, two cards: install either one or both.
 
-▶ [Watch the full parkour demo](media/parkour.mp4)
-
 > **Beta:** things will break. Please report what you find in [Issues](../../issues), with the logs (see [Logs](#logs)).
 
 ## What it is
