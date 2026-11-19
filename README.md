@@ -3,7 +3,7 @@
 <p align="center"><img src="media/parkour.gif" alt="Faith Runner parkour in GTA V: dropping onto a roof, vaulting the vents and leaping off the building"></p>
 Check out my youtube video for full demo: https://www.youtube.com/watch?v=fmVDSEvzDbI
 
-**Mirror's Edge parkour and Skate 3 skating in GTA V Legacy story mode.** One launcher, two cards: install either one or both.
+**Mirror's Edge parkour and Skate 3 skating in GTA V Legacy story mode.** One launcher two mods: install either one or both.
 
 > **Beta:** things will break. Please report what you find in [Issues](../../issues), with the logs (see [Logs](#logs)).
 
