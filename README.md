@@ -121,7 +121,7 @@ Notes:
 - First person only for parkour.
 - A fall from about 20 m ends parkour with GTA's ragdoll (`LethalFall` in `FaithRunnerV.ini`).
 - Rivers and streams aren't detected as water yet (the sea, lakes and pools are): press F8 before you jump into one.
-- GTA's own footsteps, used on grass, dirt, gravel and sand, are quiet. `SoftGround = concrete` in `FaithRunnerV.ini` uses Mirror's Edge's concrete steps there instead.
+- On grass, dirt, gravel and sand you hear GTA's own footsteps (the default), and they're quiet. If you'd rather hear Mirror's Edge's concrete steps there, you can set `SoftGround = concrete` in `FaithRunnerV.ini`.
 - Teleporting while either mode is on can drop you through the map: switch it off first.
 
 ## Logs

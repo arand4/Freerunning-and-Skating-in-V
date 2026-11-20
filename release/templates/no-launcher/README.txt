@@ -75,8 +75,9 @@ KNOWN LIMITS (beta)
   - The sea, lakes and pools end parkour mode: GTA's swimming takes over (tap F8 again on dry
     land). Rivers and streams aren't detected yet: press F8 before you jump into one.
   - People are solid: walk into someone and they're in the way; run into them and they fall over.
-  - On grass, dirt, gravel and sand you hear GTA's own footsteps, which are quiet (Mirror's Edge
-    has none for them); SoftGround = concrete in FaithRunnerV.ini uses Mirror's Edge's concrete ones instead.
+  - On grass, dirt, gravel and sand you hear GTA's own footsteps (the default), and they're
+    quiet. If you'd rather hear Mirror's Edge's concrete steps there, you can set
+    SoftGround = concrete in FaithRunnerV.ini.
   - Missions are untested: switch parkour off with F8 if one acts up.
   - Only ladders are found in the world so far: no swing poles, balance beams, door barges,
     barbed wire or soft landings yet.
