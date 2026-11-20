@@ -109,9 +109,40 @@ impl Placed {
 #[derive(Default)]
 pub struct Dimensions(HashMap<u32, (Vec3, Vec3)>);
 
+/// A person standing in Faith's way: an upright box this wide and tall over their feet.
+pub const PERSON_HALF_WIDTH: f32 = 0.25;
+pub const PERSON_HEIGHT: f32 = 1.75;
+
+/// Script thread: the people (alive, on foot, upright, not the player) within `reach` of
+/// `centre`: their entity and position (GTA space, the ped's origin, about 1 m above the feet).
+pub fn people(centre: Vec3, reach: f32, player: i32) -> Vec<(i32, Vec3)> {
+    let s = shv::shv();
+    let mut h = vec![0i32; 512];
+    let n = unsafe { (s.all_peds)(h.as_mut_ptr(), h.len() as i32) }.clamp(0, 512) as usize;
+    let mut out = vec![];
+    for &e in &h[..n] {
+        if e == player || out.len() >= 24 {
+            continue;
+        }
+        let p = ret_vec3(native!(GET_ENTITY_COORDS, e, true));
+        if (p - centre).length() > reach
+            || !ret_bool(native!(IS_ENTITY_VISIBLE, e))
+            || ret_bool(native!(IS_ENTITY_DEAD, e, false))
+            || ret_bool(native!(IS_PED_IN_ANY_VEHICLE, e, false))
+            || ret_bool(native!(IS_PED_RAGDOLL, e))
+            || !ret_bool(native!(IS_PED_HUMAN, e))
+        {
+            continue;
+        }
+        out.push((e, p));
+    }
+    out
+}
+
 /// Script thread: the cars and props within `reach` of `centre` (GTA space) as Faith's
-/// moving layer. Unknown models are asked for on the collision thread.
-pub fn moving_world(centre: Vec3, reach: f32, origin: Vec3, shared: &Handle, dims: &mut Dimensions) -> (MeshWorld, Vec<CarBox>, usize) {
+/// moving layer, plus a box for each person in `people` (their feet, GTA space). Unknown models
+/// are asked for on the collision thread.
+pub fn moving_world(centre: Vec3, reach: f32, origin: Vec3, shared: &Handle, dims: &mut Dimensions, people: &[Vec3]) -> (MeshWorld, Vec<CarBox>, usize) {
     let s = shv::shv();
     let mut placed = Vec::new();
     let mut h = vec![0i32; 1024];
@@ -176,6 +207,17 @@ pub fn moving_world(centre: Vec3, reach: f32, origin: Vec3, shared: &Handle, dim
                 }
             }
         }
+    }
+    for &f in people {
+        let b = Placed {
+            model: 0,
+            car: false,
+            pos: f,
+            axes: [Vec3::X, Vec3::Y, Vec3::Z],
+            lo: Vec3::new(-PERSON_HALF_WIDTH, -PERSON_HALF_WIDTH, 0.0),
+            hi: Vec3::new(PERSON_HALF_WIDTH, PERSON_HALF_WIDTH, PERSON_HEIGHT),
+        };
+        tris.extend(b.box_tris());
     }
     let count = placed.len();
     let faith = tris.into_iter().map(|t| t.map(|p| to_faith(p, origin))).collect();

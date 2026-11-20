@@ -72,8 +72,11 @@ CONTROLS
 
 KNOWN LIMITS (beta)
   - First person only.
-  - Water doesn't end parkour mode yet: press F8 before you jump in.
-  - Pedestrians have no collision yet: you run through people.
+  - The sea, lakes and pools end parkour mode: GTA's swimming takes over (tap F8 again on dry
+    land). Rivers and streams aren't detected yet: press F8 before you jump into one.
+  - People are solid: walk into someone and they're in the way; run into them and they fall over.
+  - On grass, dirt, gravel and sand you hear GTA's own footsteps, which are quiet (Mirror's Edge
+    has none for them); SoftGround = concrete in FaithRunnerV.ini uses Mirror's Edge's concrete ones instead.
   - Missions are untested: switch parkour off with F8 if one acts up.
   - Only ladders are found in the world so far: no swing poles, balance beams, door barges,
     barbed wire or soft landings yet.

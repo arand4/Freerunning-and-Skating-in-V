@@ -80,7 +80,8 @@ impl Pads {
             b.turn |= k(0x51); // Q
             b.melee |= k(0x46); // F
             b.toggle |= k(cfg.toggle_key);
-            b.menu_key |= cfg.menu_key != 0 && k(cfg.menu_key);
+            // Not with Shift: Shift+F21 is Sound Mixer V's menu (MoM).
+            b.menu_key |= cfg.menu_key != 0 && k(cfg.menu_key) && !k(0x10);
         }
         let prev = self.prev;
         self.prev = b;
@@ -201,6 +202,8 @@ struct Faith {
     /// Cars and props: model sizes, and how many were near last frame (for the log).
     dims: Dimensions,
     near_bodies: usize,
+    /// People she ran into and knocked over (each once in a while).
+    knocked: std::collections::HashMap<i32, Instant>,
     /// Faith's arms and legs (Body = faith, first person, Mirror's Edge found).
     body: Option<Body>,
     /// Third person: Faith's third-person animations on the GTA character's skeleton.
@@ -347,6 +350,10 @@ struct Sound {
     director: Option<Director>,
     /// What her feet and hands touch (GTA's materials), for the step sounds.
     surface: crate::surface::Probe,
+    /// SoftGround = gta: GTA's own footsteps on grass, dirt and the like (and whether they're on now).
+    gta_soft_steps: bool,
+    gta_steps_on: bool,
+    soft_mix: f32,
 }
 
 /// The body, once it has loaded in the background (None: not wanted, not found, or failed).
@@ -377,6 +384,54 @@ fn hold(ped: i32, on: bool) {
     }
     native!(SET_ENTITY_HAS_GRAVITY, ped, !on);
     native!(SET_PED_CAN_RAGDOLL, ped, !on);
+}
+
+/// Running into someone at this speed or faster (m/s) knocks them over; slower, they're in her
+/// way like a wall.
+const KNOCK_SPEED: f32 = 4.0;
+
+/// The people near her this frame: those she runs into fast enough are knocked over (GTA's
+/// ragdoll, pushed her way, and she loses some speed); the rest come back as their feet
+/// positions, which become boxes in her moving world.
+fn people_in_the_way(f: &mut Faith, here: Vec3) -> Vec<Vec3> {
+    f.knocked.retain(|_, t| t.elapsed().as_secs_f32() < 3.0);
+    let vel = dir_to_gta(f.ctrl.vel);
+    let flat = Vec3::new(vel.x, vel.y, 0.0);
+    let speed = flat.length();
+    let mut boxes = vec![];
+    for (ped, p) in dynamic::people(here, 8.0, f.ped) {
+        let feet = p - Vec3::Z * 1.0;
+        let to = Vec3::new(feet.x - here.x, feet.y - here.y, 0.0);
+        let level = (here.z - feet.z).abs() < 1.4;
+        // Touching distance (her half width + theirs), going their way.
+        let touching = level && to.length() < 0.25 + dynamic::PERSON_HALF_WIDTH + 0.25;
+        if touching && speed >= KNOCK_SPEED && flat.dot(to) > 0.0 && !f.knocked.contains_key(&ped) {
+            f.knocked.insert(ped, Instant::now());
+            native!(SET_PED_TO_RAGDOLL, ped, 1500, 2500, 0, false, false, false);
+            let push = flat.normalize_or_zero() * (speed * 1.2) + Vec3::Z * 1.5;
+            // Force type 1 (an impulse), at the centre, in world space.
+            native!(APPLY_FORCE_TO_ENTITY, ped, 1, push.x, push.y, push.z, 0.0f32, 0.0f32, 0.0f32, 0, false, true, true, false, true);
+            f.ctrl.vel = Vec3::new(f.ctrl.vel.x * 0.55, f.ctrl.vel.y, f.ctrl.vel.z * 0.55);
+            log!("faith: ran into someone at {speed:.1} m/s and knocked them over");
+            continue;
+        }
+        if f.knocked.contains_key(&ped) {
+            continue; // falling over: no box
+        }
+        boxes.push(feet);
+    }
+    boxes
+}
+
+/// Water deeper than this over her feet (metres) hands her to GTA's swimming; shallower, she
+/// wades on in Faith mode (with Mirror's Edge's water footsteps).
+const WADE_DEPTH: f32 = 0.9;
+
+/// Her feet (GTA coordinates) are WADE_DEPTH to 6 m below a water surface: GTA's water map
+/// (sea, rivers, lakes, pools), without waves.
+fn deep_water(feet: Vec3) -> bool {
+    // Not when far below it: a tunnel or basement under the harbour isn't in the water.
+    crate::surface::water_depth(feet).is_some_and(|d| d > WADE_DEPTH && d < 6.0)
 }
 
 fn player_ok(ped: i32) -> bool {
@@ -423,7 +478,7 @@ pub fn run() {
         voice: cfg.voice_volume,
         effects: cfg.effects_volume,
     };
-    let mut sound = cfg.sounds.then(|| Sound { tx: audio::start(volumes), pending: None, director: None, surface: crate::surface::Probe::new() });
+    let mut sound = cfg.sounds.then(|| Sound { tx: audio::start(volumes), pending: None, director: None, surface: crate::surface::Probe::new(), gta_soft_steps: cfg.soft_ground != "concrete", gta_steps_on: false, soft_mix: cfg.soft_ground_mix });
     let mut cues_asked = false;
     // The character model (menu "Character"): a model change being loaded, the model the game
     // gave you (to go back to), and Faith mode to switch back on after the change.
@@ -603,6 +658,9 @@ pub fn run() {
                     say("Leave skate mode first", 2500);
                     log!("faith: not started: SK8V's skate mode is on");
                     Mode::Off
+                } else if pressed.toggle && player_ok(ped) && ret_bool(native!(IS_PED_SWIMMING, ped)) {
+                    say("Get out of the water first", 2000);
+                    Mode::Off
                 } else if pressed.toggle && player_ok(ped) {
                     let origin = ret_vec3(native!(GET_ENTITY_COORDS, ped, true));
                     let mut s = shared.lock().unwrap();
@@ -647,12 +705,27 @@ pub fn run() {
                 if moved {
                     log!("faith: the character was moved {:.0} m by something else (map switch or teleport)", (now_at - expected).length());
                 }
-                if pressed.toggle || current != f.ped || !player_ok(f.ped) || fell || moved {
+                // In deep water (sea, rivers, lakes, pools): GTA's swimming takes over. Mirror's
+                // Edge has no swimming, and GTA's collision has no water surface to land on.
+                let in_water = !paused && deep_water(to_gta(f.ctrl.feet, f.origin));
+                if in_water {
+                    log!("faith: into the water: Faith mode off, GTA swims");
+                }
+                if pressed.toggle || current != f.ped || !player_ok(f.ped) || fell || moved || in_water {
                     leave(&f, &cfg, &shared);
                     if let Some(s) = &sound {
                         let _ = s.tx.send(Msg::StopAll);
                     }
-                    say(if moved { "Faith mode off (you were moved). Tap F8 once you've landed." } else { "Faith mode off" }, if moved { 4000 } else { 1500 });
+                    say(
+                        if moved {
+                            "Faith mode off (you were moved). Tap F8 once you've landed."
+                        } else if in_water {
+                            "Faith mode off (water). Tap F8 again on dry land."
+                        } else {
+                            "Faith mode off"
+                        },
+                        if moved || in_water { 3000 } else { 1500 },
+                    );
                     Mode::Off
                 } else {
                     // Body or head changed in the menu: set first person up again with it.
@@ -730,6 +803,7 @@ fn enter(ped: i32, origin: Vec3, cfg: &Config, loaded: Option<Arc<Loaded>>) -> F
         look: LookLimiter::default(),
         dims: Dimensions::default(),
         near_bodies: 0,
+        knocked: std::collections::HashMap::new(),
         body,
         third: None,
         own_body: cfg.body == "gta",
@@ -754,6 +828,8 @@ fn leave(f: &Faith, cfg: &Config, shared: &collision::Handle) {
         let p = to_gta(f.ctrl.feet, f.origin) + Vec3::Z * cfg.ped_z_offset;
         native!(STOP_ANIM_TASK_ANY, f.ped);
         hold(f.ped, false);
+        // GTA's footsteps back on (Faith mode turns them off off soft ground).
+        native!(SET_PED_FOOTSTEPS_EVENTS_ENABLED, f.ped, true);
         native!(SET_ENTITY_COORDS_NO_OFFSET, f.ped, p.x, p.y, p.z, false, false, false);
         let v = dir_to_gta(f.ctrl.vel);
         native!(SET_ENTITY_VELOCITY, f.ped, v.x, v.y, v.z);
@@ -809,7 +885,8 @@ fn tick(
 
     // Cars and props near her, as a moving layer over the map.
     let here = to_gta(f.ctrl.feet, f.origin);
-    let (moving, cars, near) = dynamic::moving_world(here, 15.0, f.origin, shared, &mut f.dims);
+    let boxes = people_in_the_way(f, here);
+    let (moving, cars, near) = dynamic::moving_world(here, 15.0, f.origin, shared, &mut f.dims, &boxes);
     if near != f.near_bodies && (near == 0 || f.near_bodies == 0 || near.abs_diff(f.near_bodies) >= 5) {
         log!("dynamic: {near} cars and props within 15 m");
         f.near_bodies = near;
@@ -1026,6 +1103,9 @@ fn gta_tuning(t: &mut Tuning, cfg: &Config) {
     t.step_up_keep = 0.9;
     // GTA's own consequences instead of a respawn at the checkpoint.
     t.respawn_on_death = false;
+    // No kill plane: Mirror's Edge's "40 m below the start = fell out of the level" killed her
+    // on long downhill runs (GTA's hills). Real falls are judged by height (LethalFall).
+    t.kill_y = None;
     // GTA's steps come in all heights, and walls rise behind them: springboards work off both.
     t.springboard_into_walls = true;
     // ...and a roof's parapet launches you on over the gap instead of being vaulted.
@@ -1049,8 +1129,26 @@ fn play_sounds(f: &Faith, snd: &mut Sound, dt: f32, step_phase: f32) {
     let ladder = matches!(f.ctrl.state.name(), "Onto ladder" | "Ladder" | "Off ladder");
     snd.surface.update(f.ped, feet, forward, ladder);
     let (on_feet, on_hands) = (snd.surface.feet, snd.surface.hands);
+    // Soft ground: GTA's own footsteps (from the GTA run animation the character plays under
+    // Faith's), Mirror's Edge's foot steps muted there; elsewhere GTA's are off.
+    let gta_steps = snd.gta_soft_steps && snd.surface.soft;
+    if gta_steps != snd.gta_steps_on {
+        snd.gta_steps_on = gta_steps;
+        log!("faith: {}", if gta_steps { "soft ground: GTA's own footsteps on, Mirror's Edge's off" } else { "hard ground: Mirror's Edge's footsteps" });
+    }
+    native!(SET_PED_FOOTSTEPS_EVENTS_ENABLED, f.ped, gta_steps);
+    if gta_steps {
+        native!(SET_FORCE_FOOTSTEP_UPDATE, f.ped, true);
+    }
     director.update(dt, &f.ctrl, &notifies, f.body.is_some(), step_phase, &|hand| if hand { on_hands } else { on_feet }, &mut out);
-    for cmd in out {
+    for mut cmd in out {
+        // Soft ground: Mirror's Edge's step quieter, under GTA's (alone they're faint).
+        if gta_steps && let SoundCmd::Play { cue, volume, .. } = &mut cmd && cue.starts_with("a_material_footstep") {
+            if snd.soft_mix <= 0.0 {
+                continue;
+            }
+            *volume *= snd.soft_mix;
+        }
         // Faith's female voice (breathing, effort) only with Faith's own body.
         if f.body_mode != "faith" && !FAITH_PED.load(std::sync::atomic::Ordering::Relaxed) && matches!(&cmd, SoundCmd::Play { cue, .. } if cue.starts_with("a_character_female")) {
             continue;

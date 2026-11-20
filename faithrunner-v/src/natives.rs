@@ -76,3 +76,14 @@ pub const GET_ASPECT_RATIO: u64 = 0xF1307EF624A80D87;
 // Footstep surfaces (verified against ScriptHookVDotNet3's GTA.Native.Hash).
 pub const START_EXPENSIVE_SYNCHRONOUS_SHAPE_TEST_LOS_PROBE: u64 = 0x377906D8A31E5586;
 pub const GET_SHAPE_TEST_RESULT_INCLUDING_MATERIAL: u64 = 0x65287525D951F6BE;
+// Water ends Faith mode (verified against ScriptHookVDotNet3's GTA.Native.Hash).
+pub const GET_WATER_HEIGHT_NO_WAVES: u64 = 0x8EE6B53CE13A9794;
+pub const IS_PED_SWIMMING: u64 = 0x9DE327631295B4C2;
+// People (verified against ScriptHookVDotNet3's GTA.Native.Hash).
+pub const APPLY_FORCE_TO_ENTITY: u64 = 0xC5F68BE9613E2D18;
+pub const IS_PED_HUMAN: u64 = 0xB980061DA992779D;
+// GTA's own footsteps on soft ground (verified against ScriptHookVDotNet3's GTA.Native.Hash).
+pub const SET_FORCE_FOOTSTEP_UPDATE: u64 = 0x129466ED55140F8D;
+pub const SET_PED_FOOTSTEPS_EVENTS_ENABLED: u64 = 0x0653B735BFBDFE87;
+// Rivers and streams too (GET_WATER_HEIGHT only knows the sea and pools; verified hash).
+pub const TEST_VERTICAL_PROBE_AGAINST_ALL_WATER: u64 = 0x2B3451FA1E3142E2;

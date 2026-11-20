@@ -9,10 +9,19 @@ Check out my youtube video for full demo: https://www.youtube.com/watch?v=fmVDSE
 
 ## What it is
 
-- **Faith Runner (parkour):** [Tanner](https://github.com/tnrjns/faith-runner)'s Mirror's Edge movement (run, wallrun, wallclimb, vault, ledge grab, pull-up, slide, roll, ladders) on GTA's real buildings, cars and props. Faith's first-person arms and legs (or your GTA character's own) and her sounds come from your own Mirror's Edge: Install copies the 16 files it needs (about 65 MB) into `GTA V\FaithRunnerV\MirrorsEdge`, so Mirror's Edge can be uninstalled afterwards. No PC copy? Your **Mirror's Edge Xbox 360 disc image** (.iso) works too: Install converts what it needs from it in a few seconds (139 MB). Her footsteps and hand sounds follow what she touches in GTA (concrete, metal, air ducts, wood, grating, fences, ladders, cardboard, glass, water).
+- **Faith Runner (parkour):** [Tanner](https://github.com/tnrjns/faith-runner)'s Mirror's Edge movement (run, wallrun, wallclimb, vault, ledge grab, pull-up, slide, roll, ladders) on GTA's real buildings, cars and props. Faith's first-person arms and legs (or your GTA character's own) and her sounds come from your own Mirror's Edge: Install copies the 16 files it needs (about 65 MB) into `GTA V\FaithRunnerV\MirrorsEdge`, so Mirror's Edge can be uninstalled afterwards. No PC copy? Your **Mirror's Edge Xbox 360 disc image** (.iso) works too: Install converts what it needs from it in a few seconds (139 MB). Her footsteps and hand sounds follow what she touches in GTA (concrete, metal, air ducts, wood, grating, fences, ladders, cardboard, glass, water; on grass, dirt, gravel and sand, which Mirror's Edge has no sounds for, GTA's own, which are quiet for now). The sea, lakes and pools hand you back to GTA to swim (rivers and streams aren't detected yet), and people are solid: run into someone and they fall over.
 - **SK8V (skating):** [becaring](https://github.com/becaring/SK8V)'s Skate 3 controls and physics. It isn't part of this download: the launcher fetches becaring's newest release from his GitHub and runs his own setup, right inside the launcher, with your own Skate 3 disc.
 
 The launcher also checks for updates to both.
+
+### New in 0.2.0-beta
+
+- **Mirror's Edge Xbox 360 disc image** as an alternative to the PC game (launcher: **Xbox 360 disc**).
+- **Footsteps by surface:** Faith's steps and hand grabs sound like what she touches in GTA.
+- **Water:** the sea, lakes and pools hand you over to GTA's swimming.
+- **People are solid:** walk into them and they block you; run into them and they fall over.
+- **A download without the launcher** (`-no-launcher.zip`, installed by a script).
+- Fixed: running down long hills ended in a "deadly fall"; Shift+F21 opened the parkour menu.
 
 ## Requirements
 
@@ -95,8 +104,6 @@ SK8V's controls: see [its README](https://github.com/becaring/SK8V#controls).
 
 **Big things still missing:**
 
-- **Water doesn't end parkour mode.** Jumping or falling into water should hand you back to GTA so you swim; for now, press F8 to switch parkour off first.
-- **Pedestrians have no collision.** You run straight through people.
 - **Missions are untested.** Nobody knows yet how parkour mode behaves during story missions: switch it off with F8 if one acts up.
 - **Some of Faith Runner's moves can't happen in GTA yet**, because the mod only finds ladders in the world so far: swing poles, balance beams (planned for narrow parapets and fence tops), barging or kicking doors open, tripping on barbed wire and soft landings on mattresses.
 
@@ -111,6 +118,8 @@ Also:
 - Parkour and skating don't run at the same time: put the board away before pressing F8.
 - First person only for parkour.
 - A fall from about 20 m ends parkour with GTA's ragdoll (`LethalFall` in `FaithRunnerV.ini`).
+- Rivers and streams aren't detected as water yet (the sea, lakes and pools are): press F8 before you jump into one.
+- GTA's own footsteps, used on grass, dirt, gravel and sand, are quiet. `SoftGround = concrete` in `FaithRunnerV.ini` uses Mirror's Edge's concrete steps there instead.
 - Teleporting while either mode is on can drop you through the map: switch it off first.
 
 ## Logs
@@ -119,7 +128,7 @@ Parkour: `FaithRunnerV.log` in the GTA V folder. SK8V: `%LOCALAPPDATA%\SkateV`.
 
 ## Uninstall (GTA closed)
 
-- **Faith Runner:** the **Remove** button on its card. By hand: delete `FaithRunnerV.asi`, `FaithRunnerV.ini` and the `FaithRunnerV` folder from the GTA V folder.
+- **Faith Runner:** the **Remove** button on its card, or `Uninstall Faith Runner.bat` from the no-launcher download. By hand: delete `FaithRunnerV.asi`, `FaithRunnerV.ini` and the `FaithRunnerV` folder from the GTA V folder.
 - **SK8V:** see [Uninstall in SK8V's README](https://github.com/becaring/SK8V#uninstall).
 - ScriptHookV is left alone either way.
 

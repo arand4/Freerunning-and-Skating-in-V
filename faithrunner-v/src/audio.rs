@@ -144,6 +144,15 @@ mod tests {
             }
         }
         println!("{} cues wanted, {cues} read, {decoded} decode", wanted.len());
+        let mut by: std::collections::BTreeMap<String, (usize, usize)> = Default::default();
+        for path in &wanted {
+            let parts: Vec<&str> = path.split('.').collect();
+            let key = if parts.len() > 2 { format!("{}.{}", parts[0], parts[1]) } else { parts[0].to_string() };
+            let e = by.entry(key).or_default();
+            e.0 += 1;
+            if bank.cue(path).is_some() { e.1 += 1 }
+        }
+        for (k, (w, r)) in by { println!("  {k}: {r} of {w}"); }
         assert!(decoded > 20 && decoded == cues);
     }
 }

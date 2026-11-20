@@ -253,7 +253,22 @@ pub fn surface_of(n: &str) -> Surface {
     }
 }
 
+/// Ground Mirror's Edge has no sound for (a city game): grass, dirt, gravel, sand, mud, snow,
+/// leaves... GTA's own footsteps play there instead (SoftGround = gta).
+pub fn is_soft(n: &str) -> bool {
+    ["Grass", "Dirt", "Gravel", "Sand", "Mud", "Marsh", "Soil", "Clay", "Snow", "Leaves", "Twigs", "Bushes", "Woodchips", "Hay", "Ice"]
+        .iter()
+        .any(|k| n.starts_with(k))
+}
+
 pub struct Probe {
+    /// The ground under her feet is soft (see `is_soft`).
+    pub soft: bool,
+    /// Shallow water was found under her until then (it holds for a moment: GTA's water map
+    /// over a stream bed comes and goes by a centimetre).
+    water_until: Option<std::time::Instant>,
+    /// The last material logged under her feet (each change is logged, to tune the sounds).
+    last_feet: u32,
     pub feet: Surface,
     pub hands: Surface,
     frame: u32,
@@ -264,13 +279,14 @@ pub struct Probe {
 impl Probe {
     pub fn new() -> Probe {
         let names = MATERIALS.iter().copied().collect();
-        Probe { feet: Surface::Concrete, hands: Surface::Concrete, frame: 0, names, seen: HashSet::new() }
+        Probe { soft: false, water_until: None, last_feet: 0, feet: Surface::Concrete, hands: Surface::Concrete, frame: 0, names, seen: HashSet::new() }
     }
 
     /// Every few frames, one ray: down from just above her feet, or (alternately) forward from her
     /// chest. `feet` and `forward` in GTA coordinates. On a ladder both are the ladder.
     pub fn update(&mut self, ped: i32, feet: Vec3, forward: Vec3, on_ladder: bool) {
         if on_ladder {
+            self.soft = false;
             self.feet = Surface::MetalLadder;
             self.hands = Surface::MetalLadder;
             return;
@@ -286,9 +302,37 @@ impl Probe {
         } else {
             (feet + Vec3::Z * 0.4, feet - Vec3::Z * 0.6)
         };
+        // Shallow water (streams, puddles in the water map): the ray hits the bed under it, so
+        // GTA's water surface is checked first.
+        if !hands {
+            let now = std::time::Instant::now();
+            // Up to 3 cm below her feet still counts: her feet rest on the bed, the surface
+            // can be level with it.
+            if let Some(depth) = water_depth(feet)
+                && depth > -0.03
+                && depth < 1.0
+            {
+                if self.feet != Surface::Water {
+                    log!("faith: in shallow water ({depth:.2} m)");
+                }
+                self.water_until = Some(now + std::time::Duration::from_millis(500));
+            }
+            if self.water_until.is_some_and(|t| now < t) {
+                self.feet = Surface::Water;
+                self.soft = false;
+                return;
+            }
+        }
         let Some(hash) = material(ped, a, b) else { return };
         let name = self.names.get(&hash).copied();
         let s = name.map_or(Surface::Concrete, surface_of);
+        if !hands && hash != self.last_feet {
+            self.last_feet = hash;
+            let w = water_depth(feet).map_or("no water".to_string(), |d| format!("water surface {d:+.2} m"));
+            let (rh, ry) = river_probe(feet);
+            let w = format!("{w}; all-water probe {rh}, height {ry:.2} (feet {:.2})", feet.z);
+            log!("faith: feet on {} at ({:.1}, {:.1}, {:.1}), {w}", name.unwrap_or("unknown"), feet.x, feet.y, feet.z);
+        }
         if self.seen.insert(hash) {
             log!("faith: GTA material {} ({hash:#010x}) sounds like {s:?}", name.unwrap_or("unknown"));
         }
@@ -296,8 +340,26 @@ impl Probe {
             self.hands = s;
         } else {
             self.feet = s;
+            self.soft = name.is_some_and(is_soft);
         }
     }
+}
+
+/// How deep GTA's water (sea, rivers, streams, lakes, pools; no waves) is over `feet`, if there is any.
+pub fn water_depth(feet: Vec3) -> Option<f32> {
+    // The sea, lakes and pools (GTA's water map). Rivers and streams aren't in it; the "all
+    // water" probe reported water on dry roads (2026-11-20), so it's only logged (river_probe).
+    let mut h = [0u64; 1];
+    let found = crate::shv::ret_bool(native!(GET_WATER_HEIGHT_NO_WAVES, feet.x, feet.y, feet.z + 2.0, h.as_mut_ptr() as *const i8));
+    let surface = f32::from_bits(h[0] as u32);
+    (found && surface.is_finite()).then_some(surface - feet.z)
+}
+
+/// Research only: what TEST_VERTICAL_PROBE_AGAINST_ALL_WATER says here (result, height).
+pub fn river_probe(feet: Vec3) -> (i32, f32) {
+    let mut r = [0u64; 1];
+    let hit = ret_i32(native!(TEST_VERTICAL_PROBE_AGAINST_ALL_WATER, feet.x, feet.y, feet.z + 2.0, 0xF, r.as_mut_ptr() as *const i8));
+    (hit, f32::from_bits(r[0] as u32))
 }
 
 /// The material hash a ray from `a` to `b` hits first (map, vehicles and objects; not `ped`).

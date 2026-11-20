@@ -33,6 +33,12 @@ pub struct Config {
     pub sound_volume: f32,
     /// Volume per kind of sound (times SoundVolume).
     pub footstep_volume: f32,
+    /// On grass, dirt, gravel, sand and snow (which Mirror's Edge has no sounds for): "gta" plays
+    /// GTA's own footsteps there, "concrete" Mirror's Edge's concrete ones.
+    pub soft_ground: String,
+    /// With SoftGround = gta: Mirror's Edge's footstep under GTA's at this volume (GTA's alone
+    /// are quiet), 0 = GTA's only.
+    pub soft_ground_mix: f32,
     pub hand_volume: f32,
     pub voice_volume: f32,
     pub effects_volume: f32,
@@ -78,6 +84,8 @@ impl Default for Config {
             sounds: true,
             sound_volume: 1.0,
             footstep_volume: 0.35,
+            soft_ground: "gta".into(),
+            soft_ground_mix: 0.0,
             hand_volume: 0.8,
             voice_volume: 1.0,
             effects_volume: 1.0,
@@ -184,6 +192,8 @@ pub fn load() -> Config {
             "headhide" => c.head_hide = v.to_ascii_lowercase(),
             "soundvolume" => c.sound_volume = f(c.sound_volume).clamp(0.0, 4.0),
             "footstepvolume" => c.footstep_volume = f(c.footstep_volume).clamp(0.0, 4.0),
+            "softground" => c.soft_ground = v.to_ascii_lowercase(),
+            "softgroundmix" => c.soft_ground_mix = f(c.soft_ground_mix).clamp(0.0, 1.0),
             "handvolume" => c.hand_volume = f(c.hand_volume).clamp(0.0, 4.0),
             "voicevolume" => c.voice_volume = f(c.voice_volume).clamp(0.0, 4.0),
             "effectsvolume" => c.effects_volume = f(c.effects_volume).clamp(0.0, 4.0),
