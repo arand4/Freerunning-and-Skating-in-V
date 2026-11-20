@@ -32,7 +32,7 @@ The launcher also checks for updates to both.
 
 ## Install
 
-1. Download the zip from [Releases](../../releases) (not "Source code"), unzip it anywhere outside the GTA folder, and close GTA V.
+1. Download the zip from [Releases](../../releases) (not "Source code"), unzip it anywhere outside the GTA folder, and make sure GTA V is not running.
    Install ScriptHookV if you haven't: copy **both** `ScriptHookV.dll` and `dinput8.dll` from its `bin` folder into the GTA V folder.
 2. Run `Launcher.exe`. It finds GTA V and Mirror's Edge by itself when it can; **Change** picks another folder, **Xbox 360 disc** your Mirror's Edge disc image.
 3. Faith Runner card: **Install**. SK8V card: pick your Skate 3 disc and stance, then **Download & install**.
@@ -105,15 +105,17 @@ SK8V's controls: see [its README](https://github.com/becaring/SK8V#controls).
 **Big things still missing:**
 
 - **Missions are untested.** Nobody knows yet how parkour mode behaves during story missions: switch it off with F8 if one acts up.
-- **Some of Faith Runner's moves can't happen in GTA yet**, because the mod only finds ladders in the world so far: swing poles, balance beams (planned for narrow parapets and fence tops), barging or kicking doors open, tripping on barbed wire and soft landings on mattresses.
+- **Some of Faith Runner's moves can't happen in GTA yet**, because the mod only finds ladders in the world so far: swing poles, balance beams (planned for narrow parapets, billboard tops, traffic lights, fence tops and other narrow objects), barging or kicking doors open, tripping on barbed wire and soft landings on mattresses.
 
-**Not tried in GTA yet** (they're in Faith Runner and should work, but haven't been tested): dodge, 180 in the air, the wallclimb turn and kick-off, coil and the classic springboard. The wall-to-wall push-off works but still needs some polish.
-
-**Planned updates:**
+**Also:**
 
 - Shimmying along ledges and round corners while hanging: it hasn't triggered in GTA yet.
 
-Also:
+**Not tried in GTA yet** (they're in Faith Runner and should work, but haven't been tested): dodge, coil and the classic springboard. The wall-to-wall push-off works but still needs some polish.
+
+
+
+Notes:
 
 - Parkour and skating don't run at the same time: put the board away before pressing F8.
 - First person only for parkour.
