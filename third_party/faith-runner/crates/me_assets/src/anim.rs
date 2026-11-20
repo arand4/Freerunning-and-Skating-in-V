@@ -97,7 +97,7 @@ impl AnimSet {
             pkg.of_class("AnimSequence").collect()
         };
         let t = props.get("TrackBoneNames").ok_or_else(|| Error::Missing("TrackBoneNames".into()))?;
-        let mut c = Cursor::new(&pkg.data, t.at);
+        let mut c = pkg.cursor(t.at);
         let n = c.count(8)?;
         let bones = (0..n).map(|_| read_name(&pkg.names, &mut c)).collect::<Result<Vec<_>>>()?;
 
@@ -118,10 +118,10 @@ impl AnimSet {
             let t = props
                 .get("CompressedTrackOffsets")
                 .ok_or_else(|| Error::Missing(format!("{name}: track offsets")))?;
-            let mut c = Cursor::new(&pkg.data, t.at);
+            let mut c = pkg.cursor(t.at);
             let n = c.count(4)?;
             let offsets = (0..n).map(|_| c.i32()).collect::<Result<Vec<_>>>()?;
-            let mut c = Cursor::new(&pkg.data, props.end);
+            let mut c = pkg.cursor(props.end);
             let len = c.count(1)?;
             let stream = c.bytes(len)?;
 
@@ -130,11 +130,11 @@ impl AnimSet {
                 let (to, tk, ro, rk) = (o[0] as usize, o[1] as usize, o[2] as usize, o[3] as usize);
                 let s = if ti == 0 { -1.0 } else { 1.0 };
                 let mut tr = Track::default();
-                let mut c = Cursor::new(stream, to);
+                let mut c = Cursor::new_be(stream, to, pkg.big_endian);
                 for _ in 0..tk {
                     tr.translations.push(c.vec3()?);
                 }
-                let mut c = Cursor::new(stream, ro);
+                let mut c = Cursor::new_be(stream, ro, pkg.big_endian);
                 if rk == 1 {
                     let [x, y, z] = c.vec3()?;
                     tr.rotations.push([-x * s, -y * s, -z * s, w_from_xyz(x, y, z)]);

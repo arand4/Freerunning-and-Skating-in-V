@@ -29,6 +29,7 @@ pub mod posehook;
 pub mod retarget;
 pub mod third;
 pub mod shv;
+pub mod surface;
 pub mod win;
 
 static MODULE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);

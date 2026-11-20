@@ -1,0 +1,21 @@
+[package]
+name = "faithrunner-xbox"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Takes Faith's body, animations, textures and sounds out of the player's own Mirror's Edge Xbox 360 disc image, for Faith Runner V"
+
+[[bin]]
+name = "FaithRunnerXbox"
+path = "src/main.rs"
+
+[dependencies]
+me_assets = { path = "../third_party/faith-runner/crates/me_assets" }
+# SK8V's XMA decoder (LGPL-2.1-or-later, a port of FFmpeg's), copied with one added function.
+skate-xma = { path = "xma" }
+lzokay-native = "0.1"
+# Only for --sound-test (compares with the PC game's Ogg).
+lewton = "0.10"
+
+[profile.release]
+debug = "line-tables-only"

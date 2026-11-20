@@ -9,7 +9,8 @@ WHAT IT IS
     pull-up, slide, roll, ladders) on GTA's real buildings, cars and props. Faith's first-person
     arms and legs or your GTA character's own, and her sounds, come from your Mirror's Edge:
     Install copies the 16 files it needs (about 65 MB) into GTA V\FaithRunnerV\MirrorsEdge, so
-    Mirror's Edge can be uninstalled afterwards.
+    Mirror's Edge can be uninstalled afterwards. No PC copy? Your Mirror's Edge Xbox 360 disc
+    image (.iso) works too: Install converts what it needs from it in a few seconds (67 MB).
   - SK8V by becaring (github.com/becaring): Skate 3's controls and physics. It isn't part of this download: the
     launcher fetches becaring's newest release from github.com/becaring/SK8V and runs his own
     setup, right inside the launcher, with your own Skate 3 disc.
@@ -20,7 +21,8 @@ REQUIREMENTS
     GTA V Legacy 1.0.3889.0 (Story Mode, BattlEye off). Not Enhanced, not Online.
   - ScriptHookV v3889.0 with its ASI loader (dinput8.dll): https://www.dev-c.com/gtav/scripthookv/
   - For parkour: Mirror's Edge (2008) for PC (Steam, EA app or disc), installed while you
-    install Faith Runner. Keyboard and mouse or a controller.
+    install Faith Runner, or your own Mirror's Edge Xbox 360 disc image (.iso). Keyboard and
+    mouse or a controller.
   - For SK8V: your own Skate 3 Xbox 360 disc image (ISO or extracted folder), a controller,
     an internet connection (207 MB download, plus 31 MB of Python the first time) and about
     7 GB free on the GTA drive during setup (about 2 GB stays).

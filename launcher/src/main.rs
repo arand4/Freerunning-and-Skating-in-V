@@ -188,7 +188,7 @@ impl App {
         d.sk8v_sha = sha256(&g.join("SkateVLegacy.asi"));
         d.sk8v_setup_done = g.join("SkateVLegacy.installed.json").is_file() && g.join("SK8V").is_dir();
         d.mirrors_ok = mirrors_ok(Path::new(&self.saved.mirrors));
-        d.me_copied = d.gta_ok && mirrors_ok(&g.join(ME_COPY));
+        d.me_copied = d.gta_ok && me_in_gta(&g);
     }
 
     fn parkour_installed_version(&self) -> Option<String> {
@@ -365,8 +365,53 @@ fn copy_me_files(c: &Shared, mirrors: &Path, gta: &Path) -> Result<usize, String
     Ok(copied)
 }
 
+/// A Mirror's Edge to take Faith from: a PC install (folder), or an Xbox 360 disc image (.iso),
+/// which FaithRunnerXbox.exe converts at install.
 fn mirrors_ok(dir: &Path) -> bool {
-    me_cooked(dir).is_some()
+    me_cooked(dir).is_some() || is_iso(dir)
+}
+
+fn is_iso(p: &Path) -> bool {
+    p.is_file() && p.extension().is_some_and(|e| e.eq_ignore_ascii_case("iso"))
+}
+
+/// Faith's files already in the GTA folder: the PC copy, or the Xbox 360 dump.
+fn me_in_gta(gta: &Path) -> bool {
+    me_cooked(&gta.join(ME_COPY)).is_some() || gta.join(ME_COPY).join(XBOX_DUMP).is_file()
+}
+
+/// What FaithRunnerXbox.exe writes inside ME_COPY.
+const XBOX_DUMP: &str = r"TdGame\CookedXenon\TdGame.xxx";
+
+/// Runs FaithRunnerXbox.exe (from the parkour files) on the player's disc image: Faith's body,
+/// animations, textures and sounds into the GTA folder, as one package Faith Runner reads.
+fn dump_xbox(c: &Shared, tool_dir: &Path, iso: &Path, gta: &Path) -> Result<(), String> {
+    use std::io::BufRead;
+    use std::os::windows::process::CommandExt;
+    let tool = tool_dir.join("FaithRunnerXbox.exe");
+    if !tool.is_file() { return Err("FaithRunnerXbox.exe (which reads Xbox 360 discs) is missing from Faith Runner's files.".into()); }
+    set_task(c, Which::Parkour, "Reading your Mirror's Edge disc", None, "");
+    let mut child = std::process::Command::new(&tool)
+        .arg(iso)
+        .arg(gta.join(ME_COPY))
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .spawn()
+        .map_err(|e| format!("Couldn't start FaithRunnerXbox.exe: {e}"))?;
+    if let Some(out) = child.stdout.take() {
+        for line in std::io::BufReader::new(out).lines().map_while(Result::ok) {
+            set_task(c, Which::Parkour, "Reading your Mirror's Edge disc", None, &line);
+        }
+    }
+    let mut err = String::new();
+    if let Some(mut e) = child.stderr.take() { use std::io::Read; let _ = e.read_to_string(&mut err); }
+    let status = child.wait().map_err(|e| e.to_string())?;
+    if !status.success() {
+        let e = err.trim().trim_start_matches("Error: ");
+        return Err(if e.is_empty() { "Reading the Mirror's Edge disc failed.".into() } else { e.to_string() });
+    }
+    Ok(())
 }
 
 fn reg(root: winreg::HKEY, key: &str, value: &str) -> Option<String> {
@@ -643,7 +688,7 @@ fn parkour_install(c: &Shared) -> Result<String, String> {
         let mut a = c.app.lock().unwrap();
         a.refresh();
         gta_problems(&a, true)?;
-        if !a.disk.mirrors_ok && !a.disk.me_copied { return Err("Pick your Mirror's Edge folder: the one that holds Binaries and TdGame.".into()); }
+        if !a.disk.mirrors_ok && !a.disk.me_copied { return Err("Pick your Mirror's Edge folder (the one that holds Binaries and TdGame), or your Mirror's Edge Xbox 360 disc image.".into()); }
         (a.gta(), a.saved.mirrors.clone(), a.parkour_remote.clone(), a.dir.join("parkour"), a.data.clone(), a.cfg.version.clone())
     };
     let (src, tag) = match remote {
@@ -671,7 +716,9 @@ fn parkour_install(c: &Shared) -> Result<String, String> {
     if !src.join("FaithRunnerV.asi").is_file() { return Err("FaithRunnerV.asi is missing from the launcher's parkour folder (Faith Runner's files).".into()); }
     fs::copy(src.join("FaithRunnerV.asi"), gta.join("FaithRunnerV.asi")).map_err(|e| format!("Copying FaithRunnerV.asi failed: {e}"))?;
     // Faith's files from the player's own Mirror's Edge, copied in once (Mirror's Edge can then go).
-    if !mirrors.is_empty() && mirrors_ok(Path::new(&mirrors)) { copy_me_files(c, Path::new(&mirrors), &gta)?; }
+    // From an Xbox 360 disc image: converted once, the same way (the disc can then go too).
+    if !mirrors.is_empty() && is_iso(Path::new(&mirrors)) { dump_xbox(c, &src, Path::new(&mirrors), &gta)?; }
+    else if !mirrors.is_empty() && mirrors_ok(Path::new(&mirrors)) { copy_me_files(c, Path::new(&mirrors), &gta)?; }
     // An ini that's already there keeps the player's settings: only the Mirror's Edge line changes.
     let ini = gta.join("FaithRunnerV.ini");
     let from = if ini.is_file() { ini.clone() } else { src.join("FaithRunnerV.ini") };
@@ -861,19 +908,20 @@ fn on_message(c: &Shared, msg: &str) {
         "pick" => {
             let c2 = c.clone();
             std::thread::spawn(move || {
-                let start = { let a = c2.app.lock().unwrap(); match arg.as_str() { "gta" => a.saved.gta.clone(), "mirrors" => a.saved.mirrors.clone(), _ => a.saved.disc.clone() } };
+                let start = { let a = c2.app.lock().unwrap(); match arg.as_str() { "gta" => a.saved.gta.clone(), "mirrors" | "mirrorsIso" => a.saved.mirrors.clone(), _ => a.saved.disc.clone() } };
                 let mut d = rfd::FileDialog::new();
-                if !start.is_empty() { d = d.set_directory(Path::new(&start).parent().filter(|_| arg.starts_with("disc")).unwrap_or(Path::new(&start))); }
+                if !start.is_empty() { d = d.set_directory(Path::new(&start).parent().filter(|_| arg.starts_with("disc") || Path::new(&start).is_file()).unwrap_or(Path::new(&start))); }
                 let picked = match arg.as_str() {
                     "gta" => d.set_title("Your GTA V Legacy folder (the one with GTA5.exe)").pick_folder(),
                     "mirrors" => d.set_title("Your Mirror's Edge folder (the one with Binaries and TdGame)").pick_folder(),
+                    "mirrorsIso" => d.set_title("Your Mirror's Edge (Xbox 360) disc image").add_filter("Xbox 360 disc image", &["iso"]).add_filter("All files", &["*"]).pick_file(),
                     "discFolder" => d.set_title("Your extracted Skate 3 disc folder").pick_folder(),
                     _ => d.set_title("Your Skate 3 (Xbox 360) disc image").add_filter("Xbox 360 disc image", &["iso"]).add_filter("All files", &["*"]).pick_file(),
                 };
                 if let Some(p) = picked {
                     let p = p.to_string_lossy().to_string();
                     let mut a = c2.app.lock().unwrap();
-                    match arg.as_str() { "gta" => a.saved.gta = p, "mirrors" => a.saved.mirrors = p, _ => a.saved.disc = p }
+                    match arg.as_str() { "gta" => a.saved.gta = p, "mirrors" | "mirrorsIso" => a.saved.mirrors = p, _ => a.saved.disc = p }
                     a.save();
                     a.refresh();
                     drop(a);

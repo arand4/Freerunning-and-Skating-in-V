@@ -6,7 +6,7 @@
 //! packed normal delta 4 bytes, source vertex index u16 = 18 bytes) and the base mesh's
 //! vertex count.
 
-use crate::package::{Cursor, Package};
+use crate::package::Package;
 use crate::props::Props;
 use crate::{Error, Result};
 
@@ -36,7 +36,7 @@ pub fn read_morph_set(pkg: &Package, set: &str) -> Result<Vec<MorphTarget>> {
 pub fn read_morph_target(pkg: &Package, export: usize) -> Result<MorphTarget> {
     let e = pkg.exports.get(export).ok_or_else(|| Error::Missing(format!("export {export}")))?;
     let props = Props::read(pkg, e)?;
-    let mut c = Cursor::new(&pkg.data, props.end);
+    let mut c = pkg.cursor(props.end);
     if c.i32()? < 1 {
         return Err(Error::Format(format!("{}: no LODs", e.name)));
     }

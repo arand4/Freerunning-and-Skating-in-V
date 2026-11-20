@@ -9,7 +9,7 @@ Check out my youtube video for full demo: https://www.youtube.com/watch?v=fmVDSE
 
 ## What it is
 
-- **Faith Runner (parkour):** [Tanner](https://github.com/tnrjns/faith-runner)'s Mirror's Edge movement (run, wallrun, wallclimb, vault, ledge grab, pull-up, slide, roll, ladders) on GTA's real buildings, cars and props. Faith's first-person arms and legs (or your GTA character's own) and her sounds come from your own Mirror's Edge: Install copies the 16 files it needs (about 65 MB) into `GTA V\FaithRunnerV\MirrorsEdge`, so Mirror's Edge can be uninstalled afterwards.
+- **Faith Runner (parkour):** [Tanner](https://github.com/tnrjns/faith-runner)'s Mirror's Edge movement (run, wallrun, wallclimb, vault, ledge grab, pull-up, slide, roll, ladders) on GTA's real buildings, cars and props. Faith's first-person arms and legs (or your GTA character's own) and her sounds come from your own Mirror's Edge: Install copies the 16 files it needs (about 65 MB) into `GTA V\FaithRunnerV\MirrorsEdge`, so Mirror's Edge can be uninstalled afterwards. No PC copy? Your **Mirror's Edge Xbox 360 disc image** (.iso) works too: Install converts what it needs from it in a few seconds (139 MB). Her footsteps and hand sounds follow what she touches in GTA (concrete, metal, air ducts, wood, grating, fences, ladders, cardboard, glass, water).
 - **SK8V (skating):** [becaring](https://github.com/becaring/SK8V)'s Skate 3 controls and physics. It isn't part of this download: the launcher fetches becaring's newest release from his GitHub and runs his own setup, right inside the launcher, with your own Skate 3 disc.
 
 The launcher also checks for updates to both.
@@ -18,14 +18,14 @@ The launcher also checks for updates to both.
 
 - Windows 10 or 11 x64, **GTA V Legacy 1.0.3889.0** (Story Mode, BattlEye off). Not Enhanced, not Online.
 - [ScriptHookV](https://www.dev-c.com/gtav/scripthookv/) v3889.0 with its ASI loader (`dinput8.dll`).
-- **For parkour:** Mirror's Edge (2008) for PC (Steam, EA app or disc), installed while you install Faith Runner. Keyboard and mouse or a controller.
+- **For parkour:** Mirror's Edge (2008) for PC (Steam, EA app or disc), installed while you install Faith Runner, **or** your own Mirror's Edge Xbox 360 disc image (.iso). Keyboard and mouse or a controller.
 - **For SK8V:** your own Skate 3 Xbox 360 disc image (ISO or extracted folder), a controller, an internet connection and about 7 GB free on the GTA drive during setup (about 2 GB stays). See [SK8V's requirements](https://github.com/becaring/SK8V#requirements).
 
 ## Install
 
 1. Download the zip from [Releases](../../releases) (not "Source code"), unzip it anywhere outside the GTA folder, and close GTA V.
    Install ScriptHookV if you haven't: copy **both** `ScriptHookV.dll` and `dinput8.dll` from its `bin` folder into the GTA V folder.
-2. Run `Launcher.exe`. It finds GTA V and Mirror's Edge by itself when it can; **Change** picks another folder.
+2. Run `Launcher.exe`. It finds GTA V and Mirror's Edge by itself when it can; **Change** picks another folder, **Xbox 360 disc** your Mirror's Edge disc image.
 3. Faith Runner card: **Install**. SK8V card: pick your Skate 3 disc and stance, then **Download & install**.
 4. Press **PLAY**.
 
@@ -34,9 +34,9 @@ Keep the launcher: open it again to get updates. Your parkour settings are kept.
 **Without the launcher window** (Faith Runner, from a command prompt in the unzipped folder, GTA closed):
 
 ```
-Launcher.exe --install-parkour --gta "<GTA V folder>" --mirrors "<Mirror's Edge folder>"
+Launcher.exe --install-parkour --gta "<GTA V folder>" --mirrors "<Mirror's Edge folder, or its Xbox 360 .iso>"
 ```
-A launcher-less download is planned and would just use a script to install faithrunner alone.
+**No launcher at all:** each release also has a `-no-launcher.zip` with Faith Runner alone (no SK8V, no update checks). Unzip it, close GTA V and double-click `Install Faith Runner.bat`: it finds GTA V and Mirror's Edge (or asks: pick `MirrorsEdge.exe` or your Xbox 360 `.iso`), checks the game version and ScriptHookV, and copies the mod and Faith's files, keeping your settings. `Uninstall Faith Runner.bat` removes it. Its README has the details.
 
 ## Staying on 1.0.3889.0
 
@@ -128,16 +128,17 @@ Parkour: `FaithRunnerV.log` in the GTA V folder. SK8V: `%LOCALAPPDATA%\SkateV`.
 Needs [Rust](https://rustup.rs) and the Visual Studio C++ build tools. From the repository folder:
 
 ```
-powershell -ExecutionPolicy Bypass -File release\build-release.ps1 -Version 0.1.0-beta
+powershell -ExecutionPolicy Bypass -File release\build-release.ps1 -Version 0.2.0-beta
 ```
 
-It builds `launcher` and `faithrunner-v` and makes the zip in `release\out`.
+It builds `launcher`, `faithrunner-v` and `xbox-dump` and makes both zips (with and without the launcher) in `release\out`.
 
 | Folder | What it is |
 |---|---|
 | `launcher/` | The launcher (Rust, tao + wry) |
 | `faithrunner-v/` | Faith Runner V, the parkour ASI (Rust) |
 | `third_party/faith-runner/` | Tanner's movement, animation and Mirror's Edge readers, with the GTA changes |
+| `xbox-dump/` | FaithRunnerXbox.exe: reads a Mirror's Edge Xbox 360 disc image (Rust); `xma/` is SK8V's XMA decoder (LGPL-2.1+) |
 | `rust/svwc/` | becaring's GTA collision decoder from SK8V, unchanged |
 | `media/` | The launcher card video and SK8V's card picture |
 | `release/` | The release build script and the texts that go in the zip |
@@ -155,6 +156,7 @@ The skating half is becaring's SK8V: you can support him on [Ko-fi](https://ko-f
 - **Faith Runner** by Tanner, MIT: https://github.com/tnrjns/faith-runner
 - **SK8V** by becaring, Apache-2.0: https://github.com/becaring/SK8V. This repository is a fork of SK8V; SK8V's own files live in his repository.
 - **Live GTA collision reading** by Sol4ra (LS-Skate-LiveCollision), as adapted by SK8V.
+- **XMA decoding** for Xbox 360 discs: SK8V's skate-xma, a port of FFmpeg's decoder, LGPL-2.1-or-later ([xbox-dump/xma](xbox-dump/xma)), only in `FaithRunnerXbox.exe`.
 
 This project's own code is MIT ([LICENSE](LICENSE)); [NOTICE](NOTICE) lists exactly which parts come from Faith Runner and SK8V and what was changed. It is an unofficial fan project, not made or endorsed by them, and unaffiliated with EA, DICE, Rockstar Games or Take-Two Interactive. It contains no Mirror's Edge, Skate 3 or GTA V code or data: everything comes from your own copies.
 

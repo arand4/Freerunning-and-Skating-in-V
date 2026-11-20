@@ -58,7 +58,7 @@ impl SkeletalMesh {
             .find("SkeletalMesh", name)
             .ok_or_else(|| Error::Missing(format!("SkeletalMesh {name}")))?;
         let props = Props::read(pkg, e)?;
-        let mut c = Cursor::new(&pkg.data, props.end);
+        let mut c = pkg.cursor(props.end);
         c.i32()?; // ME-specific leading int
         c.skip(28)?; // bounds
         let nmat = c.count(4)?;
@@ -115,6 +115,8 @@ impl SkeletalMesh {
 
         let nchunks = c.count(4)?;
         let mut vertices = Vec::new();
+        // Per chunk: its bone map and vertex count (for the Xbox 360's separate vertex buffer).
+        let mut chunk_maps: Vec<(Vec<u16>, usize)> = Vec::with_capacity(nchunks);
         for _ in 0..nchunks {
             let _base = c.i32()?;
             let nr = c.count(49)?;
@@ -125,19 +127,21 @@ impl SkeletalMesh {
             c.skip(ns * 56)?;
             let nmap = c.count(2)?;
             let bonemap = (0..nmap).map(|_| c.u16()).collect::<Result<Vec<_>>>()?;
-            c.skip(12)?; // num rigid, num soft, max influences
+            let (num_rigid, num_soft) = (c.i32()?.max(0) as usize, c.i32()?.max(0) as usize);
+            c.i32()?; // max influences
+            chunk_maps.push((bonemap.clone(), num_rigid + num_soft));
             let map = |b: u8| -> Result<u16> {
                 bonemap.get(b as usize).copied().ok_or_else(|| Error::Format(format!("bone map index {b}")))
             };
             for k in 0..nr {
-                let mut v = Cursor::new(&pkg.data, rigid_at + 49 * k);
+                let mut v = pkg.cursor(rigid_at + 49 * k);
                 let (position, [tangent, bitangent, normal], uv) = read_vertex_common(&mut v)?;
                 let bone = pkg.data[rigid_at + 49 * k + 48];
                 vertices.push(Vertex { position, normal, tangent, bitangent, uv, bones: [map(bone)?, 0, 0, 0], weights: [255, 0, 0, 0] });
             }
             for k in 0..ns {
                 let at = soft_at + 56 * k;
-                let mut v = Cursor::new(&pkg.data, at);
+                let mut v = pkg.cursor(at);
                 let (position, [tangent, bitangent, normal], uv) = read_vertex_common(&mut v)?;
                 let b = &pkg.data[at + 48..at + 52];
                 let w = &pkg.data[at + 52..at + 56];
@@ -151,6 +155,9 @@ impl SkeletalMesh {
                     weights: [w[0], w[1], w[2], w[3]],
                 });
             }
+        }
+        if vertices.is_empty() && pkg.big_endian {
+            vertices = read_xbox_vertices(&mut c, &chunk_maps)?;
         }
         if let Some(&max) = indices.iter().max() {
             if max as usize >= vertices.len() {
@@ -171,4 +178,87 @@ fn read_vertex_common(c: &mut Cursor) -> Result<([f32; 3], [[f32; 3]; 3], [f32; 
     }
     let uv = [c.f32()?, c.f32()?];
     Ok((position, basis, uv))
+}
+
+/// Xbox 360 meshes keep their chunks' vertex lists empty: the vertices follow the LOD's other data
+/// as one GPU skinning buffer. After the chunks: size, vertex count, an empty array, required bones, the raw point
+/// indices (bulk data), texture coordinate count, full-precision UVs flag, then the vertices
+/// (element size, count): position (3 floats), TangentX and TangentZ (packed normals stored as a
+/// big-endian u32, so their bytes are reversed), 4 bone indices and 4 weights (also reversed u32s),
+/// and UVs (2 half floats, or 2 floats when full precision). Vertices are in chunk order.
+fn read_xbox_vertices(c: &mut Cursor, chunks: &[(Vec<u16>, usize)]) -> Result<Vec<Vertex>> {
+    let _size = c.i32()?;
+    let count = c.count(0)?;
+    let n = c.count(1)?;
+    c.skip(n)?; // an array that's empty in Faith's meshes (Mirror's Edge's own)
+    let n = c.count(1)?;
+    c.skip(n)?; // required bones
+    let flags = c.i32()?;
+    let _elements = c.i32()?;
+    let on_disk = c.i32()?;
+    let _offset = c.i32()?;
+    if flags & 0x01 == 0 && on_disk > 0 {
+        c.skip(on_disk as usize)?; // raw point indices, inline
+    }
+    let _uv_sets = c.i32()?;
+    let full_uvs = c.i32()? != 0;
+    let elem = c.i32()? as usize;
+    let n = c.count(elem.max(1))?;
+    let want = if full_uvs { 36 } else { 32 };
+    if n != count || elem < want {
+        return Err(Error::Format(format!("Xbox vertex buffer: {n} vertices of {elem} bytes (expected {count} of {want})")));
+    }
+    let start = c.pos;
+    c.skip(n * elem)?;
+    let data = c.data;
+    let rev = |at: usize| [data[at + 3], data[at + 2], data[at + 1], data[at]];
+    let unpack = |b: [u8; 4]| [b[0] as f32 / 127.5 - 1.0, b[1] as f32 / 127.5 - 1.0, b[2] as f32 / 127.5 - 1.0, b[3] as f32 / 127.5 - 1.0];
+    let half = |at: usize| half_to_f32(u16::from_be_bytes([data[at], data[at + 1]]));
+    let mut out = Vec::with_capacity(n);
+    let mut chunk = 0;
+    let mut left = chunks.first().map_or(0, |c| c.1);
+    for k in 0..n {
+        while left == 0 && chunk + 1 < chunks.len() {
+            chunk += 1;
+            left = chunks[chunk].1;
+        }
+        left = left.saturating_sub(1);
+        let map = chunks.get(chunk).map(|c| c.0.as_slice()).unwrap_or(&[]);
+        let at = start + k * elem;
+        let mut v = Cursor::new_be(data, at, true);
+        let position = v.vec3()?;
+        let tx = unpack(rev(at + 12));
+        let tz = unpack(rev(at + 16));
+        let (tangent, normal) = ([tx[0], tx[1], tx[2]], [tz[0], tz[1], tz[2]]);
+        // TangentY = (TangentZ x TangentX) * the sign kept in TangentZ.w.
+        let sign = if tz[3] < 0.0 { -1.0 } else { 1.0 };
+        let bitangent = [
+            (normal[1] * tangent[2] - normal[2] * tangent[1]) * sign,
+            (normal[2] * tangent[0] - normal[0] * tangent[2]) * sign,
+            (normal[0] * tangent[1] - normal[1] * tangent[0]) * sign,
+        ];
+        let b = rev(at + 20);
+        let w = rev(at + 24);
+        let bone = |i: u8| -> Result<u16> { map.get(i as usize).copied().ok_or_else(|| Error::Format(format!("bone map index {i}"))) };
+        let bones = [bone(b[0])?, if w[1] > 0 { bone(b[1])? } else { 0 }, if w[2] > 0 { bone(b[2])? } else { 0 }, if w[3] > 0 { bone(b[3])? } else { 0 }];
+        let uv = if full_uvs {
+            let mut u = Cursor::new_be(data, at + 28, true);
+            [u.f32()?, u.f32()?]
+        } else {
+            [half(at + 28), half(at + 30)]
+        };
+        out.push(Vertex { position, normal, tangent, bitangent, uv, bones, weights: w });
+    }
+    Ok(out)
+}
+
+fn half_to_f32(h: u16) -> f32 {
+    let sign = if h & 0x8000 != 0 { -1.0 } else { 1.0 };
+    let exp = ((h >> 10) & 0x1F) as i32;
+    let frac = (h & 0x3FF) as f32;
+    match exp {
+        0 => sign * frac * 2f32.powi(-24),
+        31 => if frac == 0.0 { sign * f32::INFINITY } else { f32::NAN },
+        _ => sign * (1.0 + frac / 1024.0) * 2f32.powi(exp - 15),
+    }
 }

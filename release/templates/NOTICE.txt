@@ -35,7 +35,19 @@ SK8V (Apache License 2.0)
 Mirror's Edge
   Faith's body, animations, textures and sounds come from the player's own Mirror's Edge
   install: the launcher copies the 16 package files they're in from it into the player's own
-  GTA V folder, on the player's PC. None of it is included in this download.
+  GTA V folder, on the player's PC. Or, from the player's own Mirror's Edge Xbox 360 disc image,
+  parkour\FaithRunnerXbox.exe converts them into one file there. None of it is included in this
+  download.
+
+SK8V's XMA decoder (GNU LGPL 2.1 or later), in parkour\FaithRunnerXbox.exe
+  rust/skate-xma from SK8V (becaring), a port of FFmpeg 4.4's WMA Pro / XMA decoder (Copyright
+  (c) 2007 Baptiste Coudurier, Benjamin Larsson, Ulion; (c) 2008-2011 Sascha Sommer, Benjamin
+  Larsson; (c) 2008 Loren Merritt; (c) 2002 Fabrice Bellard; and the other FFmpeg authors), used
+  unchanged except for one added function (decode_packets: plain XMA packets) to turn the Xbox
+  360 disc's sounds into WAV. Licence text: parkour\LICENSE-FaithRunnerXbox-LGPL.txt. Its source,
+  and FaithRunnerXbox's, are in this project's repository (xbox-dump/), so it can be changed and
+  rebuilt. It is not part of FaithRunnerV.asi. The Xbox 360 disc reading follows SK8V's
+  tools/xiso.py (Apache-2.0).
 
 Rust crates
   glam, windows (Microsoft), rodio, lewton and their dependencies keep their own MIT/Apache-2.0

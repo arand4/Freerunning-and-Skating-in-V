@@ -9,14 +9,14 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::package::{decompress_chunked, Cursor, Package};
+use crate::package::{decompress_chunked, Package};
 use crate::props::Props;
 use crate::{Packages, Result};
 
 #[derive(Clone, Debug)]
 pub struct Wave {
     pub name: String,
-    /// Ogg Vorbis bytes.
+    /// Ogg Vorbis bytes (PC), or a PCM16 WAV file (Faith Runner V's Xbox 360 dump).
     pub ogg: Rc<Vec<u8>>,
     pub duration: f32,
 }
@@ -53,20 +53,21 @@ impl SoundBank {
     }
 
     fn load(&mut self, path: &str) -> Result<Option<Cue>> {
-        let Some((pkg_name, rest)) = path.split_once('.') else { return Ok(None) };
-        if !self.pkgs.has(pkg_name) {
-            return Ok(None);
+        // On the Xbox, the packages hold the PC packages' objects, so paths start with their names;
+        // a cue can be in several, with its waves in only some.
+        for (pkg, idx) in self.pkgs.find_all("SoundCue", path) {
+            let props = Props::read(&pkg, &pkg.exports[idx])?;
+            let mult = props.f32(&pkg, "VolumeMultiplier").unwrap_or(1.0);
+            let pmult = props.f32(&pkg, "PitchMultiplier").unwrap_or(1.0);
+            let mut cue = Cue { path: path.to_string(), waves: vec![], volume: (mult, mult), pitch: (pmult, pmult), looping: false };
+            if let Some(first) = props.object(&pkg, "FirstNode") {
+                walk(&pkg, first, &mut cue, 0)?;
+            }
+            if !cue.waves.is_empty() {
+                return Ok(Some(cue));
+            }
         }
-        let pkg = self.pkgs.get(pkg_name)?;
-        let Some(idx) = pkg.find_path("SoundCue", rest) else { return Ok(None) };
-        let props = Props::read(&pkg, &pkg.exports[idx])?;
-        let mult = props.f32(&pkg, "VolumeMultiplier").unwrap_or(1.0);
-        let pmult = props.f32(&pkg, "PitchMultiplier").unwrap_or(1.0);
-        let mut cue = Cue { path: path.to_string(), waves: vec![], volume: (mult, mult), pitch: (pmult, pmult), looping: false };
-        if let Some(first) = props.object(&pkg, "FirstNode") {
-            walk(&pkg, first, &mut cue, 0)?;
-        }
-        Ok(if cue.waves.is_empty() { None } else { Some(cue) })
+        Ok(None)
     }
 }
 
@@ -118,7 +119,7 @@ fn uniform(pkg: &Package, props: &Props, name: &str) -> Option<(f32, f32)> {
 
 /// The CompressedPCData bulk block (the second one after RawData).
 fn wave_ogg(pkg: &Package, start: usize, end: usize) -> Result<Option<Vec<u8>>> {
-    let mut c = Cursor::new(&pkg.data, start);
+    let mut c = pkg.cursor(start);
     for block in 0..2 {
         if c.pos + 16 > end {
             return Ok(None);
@@ -137,11 +138,12 @@ fn wave_ogg(pkg: &Package, start: usize, end: usize) -> Result<Option<Vec<u8>>> 
                 return Ok(None);
             }
             let bytes = if flags & 0x10 != 0 {
-                decompress_chunked(&pkg.data, at)?
+                decompress_chunked(&pkg.data, at, pkg.big_endian)?
             } else {
                 pkg.data[at..at + count].to_vec()
             };
-            return Ok(bytes.starts_with(b"OggS").then_some(bytes));
+            // Ogg Vorbis on PC; PCM16 WAV in Faith Runner V's Xbox 360 dump.
+            return Ok((bytes.starts_with(b"OggS") || bytes.starts_with(b"RIFF")).then_some(bytes));
         }
     }
     Ok(None)

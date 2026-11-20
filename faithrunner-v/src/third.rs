@@ -8,7 +8,7 @@ use std::sync::Arc;
 use faith_move::{Controller, State, TraverseKind, VAULT_TYPES};
 use glam::{Mat4, Vec3};
 use me_assets::pose::{Pose, TrackMap, globals, sample};
-use me_assets::{AnimSet, Package, SkeletalMesh};
+use me_assets::{AnimSet, SkeletalMesh};
 
 use crate::log;
 use crate::retarget::{GtaSkeleton, PoseOut, Retarget};
@@ -39,10 +39,9 @@ pub struct Faith3p {
 impl Faith3p {
     pub fn load(install: &Path) -> Result<Faith3p, String> {
         let cooked = me_assets::cooked_pc(install).ok_or("no TdGame\\CookedPC")?;
-        let pkg = Package::open(&cooked.join("Characters").join("CH_TKY_Crim_Fixer.upk")).map_err(|e| e.to_string())?;
+        let pkg = me_assets::open_package(&cooked, "Characters/CH_TKY_Crim_Fixer.upk").map_err(|e| e.to_string())?;
         let mesh = SkeletalMesh::read(&pkg, "SK_TKY_Crim_Fixer").map_err(|e| e.to_string())?;
-        let set = AnimSet::read(&Package::open(&cooked.join("Animations").join("AS_F3P_Unarmed.upk")).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
+        let set = me_assets::read_anim_set(&cooked, "Animations/AS_F3P_Unarmed.upk").map_err(|e| e.to_string())?;
         let map = TrackMap::new(&mesh, &set);
         let rest = Pose::rest(&mesh);
         let mut rest_globals = vec![];

@@ -8,16 +8,20 @@ use crate::{Error, Result};
 
 pub const TAG: u32 = 0x9E2A_83C1;
 
-/// Little-endian cursor over a byte slice.
+/// Cursor over a byte slice: little-endian (PC packages), or big-endian (Xbox 360 packages).
 #[derive(Clone)]
 pub struct Cursor<'a> {
     pub data: &'a [u8],
     pub pos: usize,
+    pub be: bool,
 }
 
 impl<'a> Cursor<'a> {
     pub fn new(data: &'a [u8], pos: usize) -> Self {
-        Self { data, pos }
+        Self { data, pos, be: false }
+    }
+    pub fn new_be(data: &'a [u8], pos: usize, be: bool) -> Self {
+        Self { data, pos, be }
     }
     fn take(&mut self, n: usize) -> Result<&'a [u8]> {
         let end = self.pos.checked_add(n).ok_or(Error::Truncated)?;
@@ -32,19 +36,24 @@ impl<'a> Cursor<'a> {
         Ok(self.take(1)?[0])
     }
     pub fn u16(&mut self) -> Result<u16> {
-        Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()))
+        let b = self.take(2)?.try_into().unwrap();
+        Ok(if self.be { u16::from_be_bytes(b) } else { u16::from_le_bytes(b) })
     }
     pub fn u32(&mut self) -> Result<u32> {
-        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+        let b = self.take(4)?.try_into().unwrap();
+        Ok(if self.be { u32::from_be_bytes(b) } else { u32::from_le_bytes(b) })
     }
     pub fn i32(&mut self) -> Result<i32> {
-        Ok(i32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+        let b = self.take(4)?.try_into().unwrap();
+        Ok(if self.be { i32::from_be_bytes(b) } else { i32::from_le_bytes(b) })
     }
     pub fn u64(&mut self) -> Result<u64> {
-        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+        let b = self.take(8)?.try_into().unwrap();
+        Ok(if self.be { u64::from_be_bytes(b) } else { u64::from_le_bytes(b) })
     }
     pub fn f32(&mut self) -> Result<f32> {
-        Ok(f32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+        let b = self.take(4)?.try_into().unwrap();
+        Ok(if self.be { f32::from_be_bytes(b) } else { f32::from_le_bytes(b) })
     }
     pub fn vec3(&mut self) -> Result<[f32; 3]> {
         Ok([self.f32()?, self.f32()?, self.f32()?])
@@ -70,7 +79,8 @@ impl<'a> Cursor<'a> {
             Ok(b[..b.len() - 1].iter().map(|&c| c as char).collect())
         } else {
             let b = self.take((-n) as usize * 2)?;
-            let w: Vec<u16> = b.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+            let be = self.be;
+            let w: Vec<u16> = b.chunks_exact(2).map(|c| if be { u16::from_be_bytes([c[0], c[1]]) } else { u16::from_le_bytes([c[0], c[1]]) }).collect();
             Ok(String::from_utf16_lossy(&w[..w.len() - 1]))
         }
     }
@@ -95,6 +105,8 @@ pub struct Export {
 }
 
 pub struct Package {
+    /// An Xbox 360 package (big-endian).
+    pub big_endian: bool,
     pub data: Vec<u8>,
     pub names: Vec<String>,
     pub imports: Vec<Import>,
@@ -108,12 +120,14 @@ impl Package {
     }
 
     pub fn parse(raw: Vec<u8>) -> Result<Self> {
-        let mut c = Cursor::new(&raw, 0);
+        let be = raw.get(..4) == Some(&TAG.to_be_bytes()[..]);
+        let mut c = Cursor::new_be(&raw, 0, be);
         if c.u32()? != TAG {
             return Err(Error::Format("not an Unreal package".into()));
         }
-        let version = c.u16()?;
-        let _licensee = c.u16()?;
+        // One u32: licensee in the high half (41 on Xbox 360, 43 on PC), file version in the low.
+        let v = c.u32()?;
+        let version = (v & 0xFFFF) as u16;
         if version != 536 {
             return Err(Error::Format(format!("package version {version}, expected 536 (Mirror's Edge)")));
         }
@@ -148,7 +162,7 @@ impl Package {
             let mut out = vec![0u8; total.max(summary_end)];
             out[..summary_end].copy_from_slice(&raw[..summary_end]);
             for &(uo, _us, co, _cs) in &chunks {
-                let bytes = decompress_chunked(&raw, co)?;
+                let bytes = decompress_chunked(&raw, co, be)?;
                 out[uo..uo + bytes.len()].copy_from_slice(&bytes);
             }
             out
@@ -156,13 +170,13 @@ impl Package {
             raw
         };
 
-        let mut pkg = Package { data, names: vec![], imports: vec![], exports: vec![] };
-        let mut c = Cursor::new(&pkg.data, name_off);
+        let mut pkg = Package { big_endian: be, data, names: vec![], imports: vec![], exports: vec![] };
+        let mut c = Cursor::new_be(&pkg.data, name_off, be);
         for _ in 0..name_count {
             pkg.names.push(c.fstring()?);
             c.u64()?;
         }
-        let mut c = Cursor::new(&pkg.data, import_off);
+        let mut c = Cursor::new_be(&pkg.data, import_off, be);
         for _ in 0..import_count {
             let _pkg = read_name(&pkg.names, &mut c)?;
             let class = read_name(&pkg.names, &mut c)?;
@@ -170,7 +184,7 @@ impl Package {
             let name = read_name(&pkg.names, &mut c)?;
             pkg.imports.push(Import { class, outer, name });
         }
-        let mut c = Cursor::new(&pkg.data, export_off);
+        let mut c = Cursor::new_be(&pkg.data, export_off, be);
         for _ in 0..export_count {
             let class = c.i32()?;
             let _super = c.i32()?;
@@ -248,6 +262,11 @@ impl Package {
         self.exports.iter().filter(move |e| self.class_name(e) == class)
     }
 
+    /// A cursor at `pos` in this package's data, in its byte order.
+    pub fn cursor(&self, pos: usize) -> Cursor<'_> {
+        Cursor::new_be(&self.data, pos, self.big_endian)
+    }
+
     pub fn bytes(&self, e: &Export) -> Result<&[u8]> {
         self.data.get(e.offset..e.offset + e.size).ok_or(Error::Truncated)
     }
@@ -261,8 +280,8 @@ pub fn read_name(names: &[String], c: &mut Cursor) -> Result<String> {
 }
 
 /// A UE3 compressed-chunk block (tag, block size, sizes, per-block table, LZO data).
-pub fn decompress_chunked(data: &[u8], at: usize) -> Result<Vec<u8>> {
-    let mut c = Cursor::new(data, at);
+pub fn decompress_chunked(data: &[u8], at: usize, be: bool) -> Result<Vec<u8>> {
+    let mut c = Cursor::new_be(data, at, be);
     if c.u32()? != TAG {
         return Err(Error::Format("bad compressed chunk tag".into()));
     }

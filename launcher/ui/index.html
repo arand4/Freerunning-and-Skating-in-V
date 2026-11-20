@@ -312,9 +312,9 @@ function renderParkour() {
   else primary = `<button class="second" ${blocked || !meOk ? 'disabled' : ''} onclick="send('parkourInstall')">Reinstall</button>`;
   $('parkour').innerHTML = `
     <div class="inputs">${PAD}Controller or ${KEYS}keyboard and mouse</div>
-    <div class="credit">Faith Runner by Tanner, <a onclick="send('url','https://github.com/tnrjns/faith-runner')">github.com/tnrjns</a> (MIT), brought into GTA V with SK8V's collision reading (becaring, Sol4ra). Faith's body, animations and sounds come from your own Mirror's Edge: Install copies the 16 files it needs (65 MB) into the GTA V folder, so Mirror's Edge can be uninstalled afterwards. ${src}.</div>
+    <div class="credit">Faith Runner by Tanner, <a onclick="send('url','https://github.com/tnrjns/faith-runner')">github.com/tnrjns</a> (MIT), brought into GTA V with SK8V's collision reading (becaring, Sol4ra). Faith's body, animations and sounds come from your own Mirror's Edge: Install copies the 16 files it needs (65 MB) into the GTA V folder, so Mirror's Edge can be uninstalled afterwards. No PC copy? Your Mirror's Edge Xbox 360 disc image works too: Install converts what it needs from it (67 MB, a few seconds). ${src}.</div>
     <div class="status">${status}</div>
-    ${field("Mirror's Edge", p.mirrorsOk ? p.mirrors : '', p.mirrorsCopied ? "Not needed any more: Faith's files are in the GTA V folder" : p.mirrors ? 'That folder has no Faith files in it' : 'Not found on this PC', `<button class="small" ${busy ? 'disabled' : ''} onclick="send('pick','mirrors')">Change</button>`)}
+    ${field("Mirror's Edge", p.mirrorsOk ? p.mirrors : '', p.mirrorsCopied ? "Not needed any more: Faith's files are in the GTA V folder" : p.mirrors ? 'That folder has no Faith files in it' : 'Not found on this PC: pick its folder, or your Xbox 360 disc image', `<button class="small" ${busy ? 'disabled' : ''} onclick="send('pick','mirrors')">Change</button><button class="small" ${busy ? 'disabled' : ''} onclick="send('pick','mirrorsIso')">Xbox 360 disc</button>`)}
     ${task ? progress(task) : ''}
     ${messages(p, 'parkour')}
     ${!task && !p.installed ? '<div class="note">Installs in a second. In story mode, tap F8 (or click both sticks) to switch Faith Runner on; hold it for the settings menu.</div>' : ''}

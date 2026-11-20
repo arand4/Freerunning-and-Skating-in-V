@@ -19,6 +19,7 @@ $out = Join-Path $PSScriptRoot "out\$slug-$Version"
 $zip = "$out.zip"
 $exe = Join-Path $repo 'launcher\target\release\Launcher.exe'
 $asi = Join-Path $repo 'faithrunner-v\target\release\FaithRunnerV.dll'
+$xbox = Join-Path $repo 'xbox-dump\target\release\FaithRunnerXbox.exe'
 
 if (-not $NoCompile) {
   # Keep this PC's folder names out of the built files.
@@ -26,7 +27,7 @@ if (-not $NoCompile) {
   $rustupHome = if ($env:RUSTUP_HOME) { $env:RUSTUP_HOME } else { Join-Path $env:USERPROFILE '.rustup' }
   $env:CARGO_ENCODED_RUSTFLAGS = (@("--remap-path-prefix=$cargoHome=cargo", "--remap-path-prefix=$rustupHome=rustup",
     "--remap-path-prefix=$repo=src", "--remap-path-prefix=$env:USERPROFILE=user") -join [char]0x1f)
-  foreach ($crate in 'launcher', 'faithrunner-v') {
+  foreach ($crate in 'launcher', 'faithrunner-v', 'xbox-dump') {
     Push-Location (Join-Path $repo $crate)
     try { cargo build --release; if ($LASTEXITCODE) { throw "$crate did not build" } } finally { Pop-Location }
   }
@@ -37,7 +38,7 @@ function Recycle($p) {
   if (Test-Path $p -PathType Container) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($p, 'OnlyErrorDialogs', 'SendToRecycleBin') }
   elseif (Test-Path $p) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p, 'OnlyErrorDialogs', 'SendToRecycleBin') }
 }
-foreach ($p in $exe, $asi) { if (-not (Test-Path $p)) { throw "missing: $p (build it first)" } }
+foreach ($p in $exe, $asi, $xbox) { if (-not (Test-Path $p)) { throw "missing: $p (build it first)" } }
 Recycle $out; Recycle $zip
 New-Item -ItemType Directory -Force $out | Out-Null
 
@@ -54,6 +55,11 @@ Copy-Item (Join-Path $repo 'licenses\faith-runner-LICENSE.txt') "$pk\LICENSE-fai
 Copy-Item (Join-Path $repo 'licenses\SK8V-LICENSE.txt') "$pk\LICENSE-SK8V.txt"
 Copy-Item (Join-Path $repo 'licenses\SK8V-NOTICE.txt') "$pk\NOTICE-SK8V.txt"
 Copy-Item (Join-Path $repo 'faithrunner-v\patches\faith-runner-gta-changes.patch') $pk
+# Reads a Mirror's Edge Xbox 360 disc image for players without the PC game. It holds SK8V's XMA
+# decoder (LGPL-2.1-or-later, a port of FFmpeg's): its licence goes with it; the source is xbox-dump/xma.
+Copy-Item $xbox "$pk\FaithRunnerXbox.exe"
+Copy-Item (Join-Path $repo 'xbox-dump\xma\COPYING.LGPL') "$pk\LICENSE-FaithRunnerXbox-LGPL.txt"
+
 $ini = Get-Content (Join-Path $repo 'faithrunner-v\FaithRunnerV.ini') | ForEach-Object {
   if ($_ -match '^; Faith Runner V settings') { "; Faith Runner V settings ($Name $Version). Lines starting with ; are notes. Most can be changed in game: hold F8." }
   elseif ($_ -match '^HeadHide\s*=') { 'HeadHide = shrink' }   # keeps Faith's camera movement
@@ -77,3 +83,29 @@ $sums = Get-ChildItem $out -Recurse -File | Sort-Object FullName | ForEach-Objec
 [IO.File]::WriteAllLines("$out\SHA256SUMS.txt", [string[]]$sums)
 [IO.Compression.ZipFile]::CreateFromDirectory($out, $zip, 'Optimal', $true)
 '{0}  ({1:N1} MB)' -f $zip, ((Get-Item $zip).Length / 1MB)
+
+# The launcher-less download: Faith Runner alone, installed by a script (templates\no-launcher).
+# Its name has no "-update", and it also holds FaithRunnerV.asi, so the launcher can update from either zip.
+$nl = "$out-no-launcher"
+$nlZip = "$nl.zip"
+Recycle $nl; Recycle $nlZip
+New-Item -ItemType Directory -Force $nl | Out-Null
+Copy-Item $pk "$nl\files" -Recurse
+$tpl = Join-Path $PSScriptRoot 'templates\no-launcher'
+Copy-Item "$tpl\install.ps1" $nl
+foreach ($f in 'Install Faith Runner.bat', 'Uninstall Faith Runner.bat') {
+  [IO.File]::WriteAllText("$nl\$f", ([IO.File]::ReadAllText("$tpl\$f") -replace '\r?\n', "`r`n"), [Text.Encoding]::ASCII)
+}
+$t = [IO.File]::ReadAllText("$tpl\README.txt").Replace('@NAME@', $Name).Replace('@VERSION@', $Version)
+[IO.File]::WriteAllText("$nl\README.txt", ($t -replace '\r?\n', "`r`n"), [Text.Encoding]::ASCII)
+$t = [IO.File]::ReadAllText("$PSScriptRoot\templates\NOTICE.txt").Replace('@NAME@', $Name).Replace('@VERSION@', $Version)
+$t = $t.Substring(0, $t.IndexOf('SK8V itself')).TrimEnd() + "`r`n"   # the launcher and SK8V download aren't in it
+$t = $t.Replace("Mirror's Edge parkour and Skate 3 skating", "Mirror's Edge parkour").Replace('parkour\', 'files\').Replace('the launcher copies', 'the installer script copies')
+$t = $t.Replace("It contains no Mirror's Edge, Skate 3 or GTA V code or data.", "It contains no Mirror's Edge or GTA V code or data.")
+[IO.File]::WriteAllText("$nl\NOTICE.txt", $t, [Text.Encoding]::ASCII)
+$sums = Get-ChildItem $nl -Recurse -File | Sort-Object FullName | ForEach-Object {
+  '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.FullName.Substring($nl.Length + 1).Replace('\', '/')
+}
+[IO.File]::WriteAllLines("$nl\SHA256SUMS.txt", [string[]]$sums)
+[IO.Compression.ZipFile]::CreateFromDirectory($nl, $nlZip, 'Optimal', $true)
+'{0}  ({1:N1} MB)' -f $nlZip, ((Get-Item $nlZip).Length / 1MB)

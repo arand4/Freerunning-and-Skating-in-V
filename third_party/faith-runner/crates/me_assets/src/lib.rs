@@ -5,6 +5,11 @@
 //! - `Characters/CH_TKY_Crim_Fixer_1P.upk`: the first-person upper body
 //!   (`SK_UpperBody`, the shared 1P skeleton) and Faith's skin/glove textures;
 //! - `Animations/AS_C1P_Unarmed.upk`: every unarmed first-person animation.
+//!
+//! Or, from the Xbox 360 version, one `TdGame/CookedXenon/TdGame.xxx` (big-endian) that holds
+//! all of those under top-level objects named like the PC packages; Faith Runner V's Xbox dump
+//! writes one with plain textures and WAV sounds. [`open_package`] and [`Packages`] hand out that
+//! one package for every PC package name.
 
 pub mod anim;
 #[cfg(feature = "prologue")]
@@ -65,6 +70,8 @@ impl std::error::Error for Error {}
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub const ARMS_PACKAGE: &str = "Characters/CH_TKY_Crim_Fixer_1P.upk";
+/// The Xbox 360's everything-package, in its CookedXenon folder.
+pub const XBOX_PACKAGE: &str = "TdGame.xxx";
 pub const ANIMS_PACKAGE: &str = "Animations/AS_C1P_Unarmed.upk";
 /// TdMove_Disarm's clips (SnatchFwd, SnatchFwd2, SnatchFwd3, SnatchBack, SnatchFail): the
 /// one-handed weapon set, as the game swaps it in for the disarm.
@@ -105,6 +112,9 @@ pub struct FaithArms {
 /// references into other packages (materials, textures, sounds) can be followed.
 pub struct Packages {
     cooked: PathBuf,
+    /// The Xbox 360 TdGame.xxx, which stands for every package, then the dump's sound packages
+    /// (`Sounds/*.xxx`: level packages cut down to Faith's sounds).
+    xbox: Vec<Rc<Package>>,
     files: HashMap<String, PathBuf>,
     open: HashMap<String, Rc<Package>>,
 }
@@ -124,14 +134,33 @@ impl Packages {
                 }
             }
         }
-        Packages { cooked: cooked.to_path_buf(), files, open: HashMap::new() }
+        let mut xbox = vec![];
+        if is_xbox(cooked) {
+            xbox.extend(open_package(cooked, XBOX_PACKAGE).ok());
+            let mut more: Vec<PathBuf> = std::fs::read_dir(cooked.join("Sounds"))
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("xxx")))
+                .collect();
+            more.sort();
+            xbox.extend(more.iter().filter_map(|p| Package::open(p).ok().map(Rc::new)));
+        }
+        Packages { cooked: cooked.to_path_buf(), xbox, files, open: HashMap::new() }
     }
 
     pub fn has(&self, name: &str) -> bool {
+        if !self.xbox.is_empty() {
+            return self.xbox.iter().any(|x| x.exports.iter().any(|e| e.outer == 0 && e.name.eq_ignore_ascii_case(name)));
+        }
         self.files.contains_key(&name.to_ascii_lowercase())
     }
 
     pub fn get(&mut self, name: &str) -> Result<Rc<Package>> {
+        if let Some(x) = self.xbox.first() {
+            return Ok(x.clone());
+        }
         let key = name.to_ascii_lowercase();
         if let Some(p) = self.open.get(&key) {
             return Ok(p.clone());
@@ -144,6 +173,26 @@ impl Packages {
         let p = Rc::new(Package::open(&path)?);
         self.open.insert(key, p.clone());
         Ok(p)
+    }
+
+    /// The package holding the export `path` (full, with the PC package name first) of `class`, and
+    /// its index there: on the Xbox, TdGame.xxx or one of the sound packages.
+    pub fn find(&mut self, class: &str, path: &str) -> Option<(Rc<Package>, usize)> {
+        self.find_all(class, path).into_iter().next()
+    }
+
+    /// Every copy of the export (the Xbox's level packages each hold their own copies of shared
+    /// objects, not always complete); one at most on PC.
+    pub fn find_all(&mut self, class: &str, path: &str) -> Vec<(Rc<Package>, usize)> {
+        if !self.xbox.is_empty() {
+            return self.xbox.iter().filter_map(|p| p.find_path(class, path).map(|i| (p.clone(), i))).collect();
+        }
+        let Some((name, rest)) = path.split_once('.') else { return vec![] };
+        if !self.has(name) {
+            return vec![];
+        }
+        let Ok(p) = self.get(name) else { return vec![] };
+        p.find_path(class, rest).map(|i| (p, i)).into_iter().collect()
     }
 
     /// Follow an object reference (export, or import from another package) to
@@ -180,10 +229,10 @@ impl FaithArms {
             Error::Missing(format!("TdGame/CookedPC under {}", install.display()))
         })?;
         let mut pkgs = Packages::new(&cooked);
-        let arms_pkg = Rc::new(Package::open(&cooked.join(ARMS_PACKAGE))?);
+        let arms_pkg = open_package(&cooked, ARMS_PACKAGE)?;
         let mesh = SkeletalMesh::read(&arms_pkg, ARMS_MESH)?;
-        let mut anims = AnimSet::read(&Package::open(&cooked.join(ANIMS_PACKAGE))?)?;
-        if let Ok(disarm) = Package::open(&cooked.join(DISARM_PACKAGE)).and_then(|p| AnimSet::read(&p)) {
+        let mut anims = read_anim_set(&cooked, ANIMS_PACKAGE)?;
+        if let Ok(disarm) = read_anim_set(&cooked, DISARM_PACKAGE) {
             anims.add_from(&disarm, |n| n.to_ascii_lowercase().starts_with("snatch"));
         }
         let materials = slots(&mut pkgs, &arms_pkg, &mesh, max_texture);
@@ -207,9 +256,9 @@ impl FaithArms {
     /// AS_AI_PatrolCop_OneHanded, for the disarm's victim side).
     pub fn load_character(install: &Path, package: &str, mesh: &str, anims: &str, set: &str) -> Result<Self> {
         let cooked = cooked_pc(install).ok_or_else(|| Error::Missing(format!("TdGame/CookedPC under {}", install.display())))?;
-        let pkg = Package::open(&cooked.join(package))?;
+        let pkg = open_package(&cooked, package)?;
         let mesh = SkeletalMesh::read(&pkg, mesh)?;
-        let anims = AnimSet::read_named(&Package::open(&cooked.join(anims))?, set)?;
+        let anims = AnimSet::read_named(&*open_package(&cooked, anims)?, set)?;
         Ok(FaithArms { mesh, anims, materials: vec![], legs: None, morphs: vec![], cooked_pc: cooked })
     }
 
@@ -218,14 +267,48 @@ impl FaithArms {
     }
 }
 
-/// Accept either the install root or the CookedPC folder itself.
+/// Accept either the install root or the CookedPC folder itself; or, for the Xbox 360 version,
+/// a folder with `TdGame/CookedXenon/TdGame.xxx` (or that CookedXenon folder).
 pub fn cooked_pc(path: &Path) -> Option<PathBuf> {
     for c in [path.join("TdGame").join("CookedPC"), path.join("CookedPC"), path.to_path_buf()] {
         if c.join(ARMS_PACKAGE).is_file() && c.join(ANIMS_PACKAGE).is_file() {
             return Some(c);
         }
     }
-    None
+    [path.join("TdGame").join("CookedXenon"), path.join("CookedXenon"), path.to_path_buf()].into_iter().find(|c| is_xbox(c))
+}
+
+/// A CookedXenon folder (the Xbox 360 version's TdGame.xxx) rather than CookedPC.
+pub fn is_xbox(cooked: &Path) -> bool {
+    cooked.join(XBOX_PACKAGE).is_file()
+}
+
+thread_local! {
+    /// Packages already open on this thread (so the Xbox's one big package is read once per loader).
+    static OPEN: std::cell::RefCell<HashMap<PathBuf, std::rc::Weak<Package>>> = std::cell::RefCell::new(HashMap::new());
+}
+
+/// Opens `rel` (a PC package path like `Characters/CH_TKY_Crim_Fixer_1P.upk`) under `cooked`, or,
+/// in a CookedXenon folder, the TdGame.xxx that holds it. Shared while any user keeps it.
+pub fn open_package(cooked: &Path, rel: &str) -> Result<Rc<Package>> {
+    let path = if is_xbox(cooked) { cooked.join(XBOX_PACKAGE) } else { cooked.join(rel) };
+    if let Some(p) = OPEN.with(|o| o.borrow().get(&path).and_then(|w| w.upgrade())) {
+        return Ok(p);
+    }
+    let p = Rc::new(Package::open(&path)?);
+    OPEN.with(|o| o.borrow_mut().insert(path, Rc::downgrade(&p)));
+    Ok(p)
+}
+
+/// The AnimSet of a PC animation package (on the Xbox: the set of that name in TdGame.xxx).
+pub fn read_anim_set(cooked: &Path, rel: &str) -> Result<AnimSet> {
+    let pkg = open_package(cooked, rel)?;
+    if pkg.big_endian {
+        let name = Path::new(rel).file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+        AnimSet::read_named(&pkg, name)
+    } else {
+        AnimSet::read(&pkg)
+    }
 }
 
 fn slots(pkgs: &mut Packages, pkg: &Rc<Package>, mesh: &SkeletalMesh, max_texture: u32) -> Vec<MaterialSlot> {
@@ -255,7 +338,7 @@ pub fn material_textures(pkg: &Package, export: usize) -> Vec<(String, i32)> {
     let Ok(props) = props::Props::read(pkg, e) else { return out };
     let Some(arr) = props.get("TextureParameterValues") else { return out };
     // Array of structs, each a tagged property list: walk it.
-    let mut c = package::Cursor::new(&pkg.data, arr.at);
+    let mut c = pkg.cursor(arr.at);
     let Ok(n) = c.count(8) else { return out };
     let mut walk = || -> Option<()> {
         for _ in 0..n {

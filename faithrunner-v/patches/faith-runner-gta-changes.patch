@@ -1,5 +1,5 @@
 diff --git a/crates/faith_anim/src/driver.rs b/crates/faith_anim/src/driver.rs
-index d2f04f1..85c499d 100644
+index d2f04f1..c678784 100644
 --- a/crates/faith_anim/src/driver.rs
 +++ b/crates/faith_anim/src/driver.rs
 @@ -931,7 +931,7 @@ impl Driver {
@@ -34,7 +34,7 @@ index d2f04f1..85c499d 100644
 +    if m.down || s <= 1.0 { k } else { (k / s.sqrt()).min(1.0) }
 +}
 diff --git a/crates/faith_move/src/climb.rs b/crates/faith_move/src/climb.rs
-index 87764fe..0d2ceaa 100644
+index 87764fe..6a141cb 100644
 --- a/crates/faith_move/src/climb.rs
 +++ b/crates/faith_move/src/climb.rs
 @@ -423,7 +423,7 @@ impl Controller {
@@ -272,7 +272,7 @@ index ace84a0..eb429f3 100644
              self.state = State::Traverse(Traverse {
                  kind: TraverseKind::PullUp,
 diff --git a/crates/faith_move/src/stepup.rs b/crates/faith_move/src/stepup.rs
-index b6f9d9b..c2c9a1c 100644
+index b6f9d9b..0009388 100644
 --- a/crates/faith_move/src/stepup.rs
 +++ b/crates/faith_move/src/stepup.rs
 @@ -63,7 +63,7 @@ impl Controller {
@@ -285,7 +285,7 @@ index b6f9d9b..c2c9a1c 100644
          let dur = (end - self.feet).length() / rate;
          self.state = State::StepUp { t: 0.0, from: self.feet, to: end, dur, saved };
 diff --git a/crates/faith_move/src/tuning.rs b/crates/faith_move/src/tuning.rs
-index 5ab6211..e3bb563 100644
+index 5ab6211..1b18bf8 100644
 --- a/crates/faith_move/src/tuning.rs
 +++ b/crates/faith_move/src/tuning.rs
 @@ -121,6 +121,9 @@ pub struct Tuning {
@@ -340,7 +340,7 @@ index 5ab6211..e3bb563 100644
              springboard_up: uu(950.0),
              springboard_xy_add: uu(-100.0),
 diff --git a/crates/faith_move/src/vault.rs b/crates/faith_move/src/vault.rs
-index 8fc1f4d..d64eced 100644
+index 8fc1f4d..68d749c 100644
 --- a/crates/faith_move/src/vault.rs
 +++ b/crates/faith_move/src/vault.rs
 @@ -10,7 +10,7 @@
@@ -459,3 +459,741 @@ index d3c3984..c734197 100644
          // Hands/head space on our side of the wall, just above the lip.
          let mut hands = me;
          hands.min.y = t.max(feet.y + 0.1);
+diff --git a/crates/me_assets/src/anim.rs b/crates/me_assets/src/anim.rs
+index 05a7925..c5c2992 100644
+--- a/crates/me_assets/src/anim.rs
++++ b/crates/me_assets/src/anim.rs
+@@ -97,7 +97,7 @@ impl AnimSet {
+             pkg.of_class("AnimSequence").collect()
+         };
+         let t = props.get("TrackBoneNames").ok_or_else(|| Error::Missing("TrackBoneNames".into()))?;
+-        let mut c = Cursor::new(&pkg.data, t.at);
++        let mut c = pkg.cursor(t.at);
+         let n = c.count(8)?;
+         let bones = (0..n).map(|_| read_name(&pkg.names, &mut c)).collect::<Result<Vec<_>>>()?;
+ 
+@@ -118,10 +118,10 @@ impl AnimSet {
+             let t = props
+                 .get("CompressedTrackOffsets")
+                 .ok_or_else(|| Error::Missing(format!("{name}: track offsets")))?;
+-            let mut c = Cursor::new(&pkg.data, t.at);
++            let mut c = pkg.cursor(t.at);
+             let n = c.count(4)?;
+             let offsets = (0..n).map(|_| c.i32()).collect::<Result<Vec<_>>>()?;
+-            let mut c = Cursor::new(&pkg.data, props.end);
++            let mut c = pkg.cursor(props.end);
+             let len = c.count(1)?;
+             let stream = c.bytes(len)?;
+ 
+@@ -130,11 +130,11 @@ impl AnimSet {
+                 let (to, tk, ro, rk) = (o[0] as usize, o[1] as usize, o[2] as usize, o[3] as usize);
+                 let s = if ti == 0 { -1.0 } else { 1.0 };
+                 let mut tr = Track::default();
+-                let mut c = Cursor::new(stream, to);
++                let mut c = Cursor::new_be(stream, to, pkg.big_endian);
+                 for _ in 0..tk {
+                     tr.translations.push(c.vec3()?);
+                 }
+-                let mut c = Cursor::new(stream, ro);
++                let mut c = Cursor::new_be(stream, ro, pkg.big_endian);
+                 if rk == 1 {
+                     let [x, y, z] = c.vec3()?;
+                     tr.rotations.push([-x * s, -y * s, -z * s, w_from_xyz(x, y, z)]);
+diff --git a/crates/me_assets/src/lib.rs b/crates/me_assets/src/lib.rs
+index 6f06180..9624e9d 100644
+--- a/crates/me_assets/src/lib.rs
++++ b/crates/me_assets/src/lib.rs
+@@ -5,6 +5,11 @@
+ //! - `Characters/CH_TKY_Crim_Fixer_1P.upk`: the first-person upper body
+ //!   (`SK_UpperBody`, the shared 1P skeleton) and Faith's skin/glove textures;
+ //! - `Animations/AS_C1P_Unarmed.upk`: every unarmed first-person animation.
++//!
++//! Or, from the Xbox 360 version, one `TdGame/CookedXenon/TdGame.xxx` (big-endian) that holds
++//! all of those under top-level objects named like the PC packages; Faith Runner V's Xbox dump
++//! writes one with plain textures and WAV sounds. [`open_package`] and [`Packages`] hand out that
++//! one package for every PC package name.
+ 
+ pub mod anim;
+ #[cfg(feature = "prologue")]
+@@ -65,6 +70,8 @@ impl std::error::Error for Error {}
+ pub type Result<T> = std::result::Result<T, Error>;
+ 
+ pub const ARMS_PACKAGE: &str = "Characters/CH_TKY_Crim_Fixer_1P.upk";
++/// The Xbox 360's everything-package, in its CookedXenon folder.
++pub const XBOX_PACKAGE: &str = "TdGame.xxx";
+ pub const ANIMS_PACKAGE: &str = "Animations/AS_C1P_Unarmed.upk";
+ /// TdMove_Disarm's clips (SnatchFwd, SnatchFwd2, SnatchFwd3, SnatchBack, SnatchFail): the
+ /// one-handed weapon set, as the game swaps it in for the disarm.
+@@ -105,6 +112,9 @@ pub struct FaithArms {
+ /// references into other packages (materials, textures, sounds) can be followed.
+ pub struct Packages {
+     cooked: PathBuf,
++    /// The Xbox 360 TdGame.xxx, which stands for every package, then the dump's sound packages
++    /// (`Sounds/*.xxx`: level packages cut down to Faith's sounds).
++    xbox: Vec<Rc<Package>>,
+     files: HashMap<String, PathBuf>,
+     open: HashMap<String, Rc<Package>>,
+ }
+@@ -124,14 +134,33 @@ impl Packages {
+                 }
+             }
+         }
+-        Packages { cooked: cooked.to_path_buf(), files, open: HashMap::new() }
++        let mut xbox = vec![];
++        if is_xbox(cooked) {
++            xbox.extend(open_package(cooked, XBOX_PACKAGE).ok());
++            let mut more: Vec<PathBuf> = std::fs::read_dir(cooked.join("Sounds"))
++                .into_iter()
++                .flatten()
++                .flatten()
++                .map(|e| e.path())
++                .filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("xxx")))
++                .collect();
++            more.sort();
++            xbox.extend(more.iter().filter_map(|p| Package::open(p).ok().map(Rc::new)));
++        }
++        Packages { cooked: cooked.to_path_buf(), xbox, files, open: HashMap::new() }
+     }
+ 
+     pub fn has(&self, name: &str) -> bool {
++        if !self.xbox.is_empty() {
++            return self.xbox.iter().any(|x| x.exports.iter().any(|e| e.outer == 0 && e.name.eq_ignore_ascii_case(name)));
++        }
+         self.files.contains_key(&name.to_ascii_lowercase())
+     }
+ 
+     pub fn get(&mut self, name: &str) -> Result<Rc<Package>> {
++        if let Some(x) = self.xbox.first() {
++            return Ok(x.clone());
++        }
+         let key = name.to_ascii_lowercase();
+         if let Some(p) = self.open.get(&key) {
+             return Ok(p.clone());
+@@ -146,6 +175,26 @@ impl Packages {
+         Ok(p)
+     }
+ 
++    /// The package holding the export `path` (full, with the PC package name first) of `class`, and
++    /// its index there: on the Xbox, TdGame.xxx or one of the sound packages.
++    pub fn find(&mut self, class: &str, path: &str) -> Option<(Rc<Package>, usize)> {
++        self.find_all(class, path).into_iter().next()
++    }
++
++    /// Every copy of the export (the Xbox's level packages each hold their own copies of shared
++    /// objects, not always complete); one at most on PC.
++    pub fn find_all(&mut self, class: &str, path: &str) -> Vec<(Rc<Package>, usize)> {
++        if !self.xbox.is_empty() {
++            return self.xbox.iter().filter_map(|p| p.find_path(class, path).map(|i| (p.clone(), i))).collect();
++        }
++        let Some((name, rest)) = path.split_once('.') else { return vec![] };
++        if !self.has(name) {
++            return vec![];
++        }
++        let Ok(p) = self.get(name) else { return vec![] };
++        p.find_path(class, rest).map(|i| (p, i)).into_iter().collect()
++    }
++
+     /// Follow an object reference (export, or import from another package) to
+     /// the package that actually holds it and the export's index there.
+     pub fn resolve(&mut self, pkg: &Rc<Package>, object: i32) -> Option<(Rc<Package>, usize)> {
+@@ -180,10 +229,10 @@ impl FaithArms {
+             Error::Missing(format!("TdGame/CookedPC under {}", install.display()))
+         })?;
+         let mut pkgs = Packages::new(&cooked);
+-        let arms_pkg = Rc::new(Package::open(&cooked.join(ARMS_PACKAGE))?);
++        let arms_pkg = open_package(&cooked, ARMS_PACKAGE)?;
+         let mesh = SkeletalMesh::read(&arms_pkg, ARMS_MESH)?;
+-        let mut anims = AnimSet::read(&Package::open(&cooked.join(ANIMS_PACKAGE))?)?;
+-        if let Ok(disarm) = Package::open(&cooked.join(DISARM_PACKAGE)).and_then(|p| AnimSet::read(&p)) {
++        let mut anims = read_anim_set(&cooked, ANIMS_PACKAGE)?;
++        if let Ok(disarm) = read_anim_set(&cooked, DISARM_PACKAGE) {
+             anims.add_from(&disarm, |n| n.to_ascii_lowercase().starts_with("snatch"));
+         }
+         let materials = slots(&mut pkgs, &arms_pkg, &mesh, max_texture);
+@@ -207,9 +256,9 @@ impl FaithArms {
+     /// AS_AI_PatrolCop_OneHanded, for the disarm's victim side).
+     pub fn load_character(install: &Path, package: &str, mesh: &str, anims: &str, set: &str) -> Result<Self> {
+         let cooked = cooked_pc(install).ok_or_else(|| Error::Missing(format!("TdGame/CookedPC under {}", install.display())))?;
+-        let pkg = Package::open(&cooked.join(package))?;
++        let pkg = open_package(&cooked, package)?;
+         let mesh = SkeletalMesh::read(&pkg, mesh)?;
+-        let anims = AnimSet::read_named(&Package::open(&cooked.join(anims))?, set)?;
++        let anims = AnimSet::read_named(&*open_package(&cooked, anims)?, set)?;
+         Ok(FaithArms { mesh, anims, materials: vec![], legs: None, morphs: vec![], cooked_pc: cooked })
+     }
+ 
+@@ -218,14 +267,48 @@ impl FaithArms {
+     }
+ }
+ 
+-/// Accept either the install root or the CookedPC folder itself.
++/// Accept either the install root or the CookedPC folder itself; or, for the Xbox 360 version,
++/// a folder with `TdGame/CookedXenon/TdGame.xxx` (or that CookedXenon folder).
+ pub fn cooked_pc(path: &Path) -> Option<PathBuf> {
+     for c in [path.join("TdGame").join("CookedPC"), path.join("CookedPC"), path.to_path_buf()] {
+         if c.join(ARMS_PACKAGE).is_file() && c.join(ANIMS_PACKAGE).is_file() {
+             return Some(c);
+         }
+     }
+-    None
++    [path.join("TdGame").join("CookedXenon"), path.join("CookedXenon"), path.to_path_buf()].into_iter().find(|c| is_xbox(c))
++}
++
++/// A CookedXenon folder (the Xbox 360 version's TdGame.xxx) rather than CookedPC.
++pub fn is_xbox(cooked: &Path) -> bool {
++    cooked.join(XBOX_PACKAGE).is_file()
++}
++
++thread_local! {
++    /// Packages already open on this thread (so the Xbox's one big package is read once per loader).
++    static OPEN: std::cell::RefCell<HashMap<PathBuf, std::rc::Weak<Package>>> = std::cell::RefCell::new(HashMap::new());
++}
++
++/// Opens `rel` (a PC package path like `Characters/CH_TKY_Crim_Fixer_1P.upk`) under `cooked`, or,
++/// in a CookedXenon folder, the TdGame.xxx that holds it. Shared while any user keeps it.
++pub fn open_package(cooked: &Path, rel: &str) -> Result<Rc<Package>> {
++    let path = if is_xbox(cooked) { cooked.join(XBOX_PACKAGE) } else { cooked.join(rel) };
++    if let Some(p) = OPEN.with(|o| o.borrow().get(&path).and_then(|w| w.upgrade())) {
++        return Ok(p);
++    }
++    let p = Rc::new(Package::open(&path)?);
++    OPEN.with(|o| o.borrow_mut().insert(path, Rc::downgrade(&p)));
++    Ok(p)
++}
++
++/// The AnimSet of a PC animation package (on the Xbox: the set of that name in TdGame.xxx).
++pub fn read_anim_set(cooked: &Path, rel: &str) -> Result<AnimSet> {
++    let pkg = open_package(cooked, rel)?;
++    if pkg.big_endian {
++        let name = Path::new(rel).file_stem().and_then(|s| s.to_str()).unwrap_or_default();
++        AnimSet::read_named(&pkg, name)
++    } else {
++        AnimSet::read(&pkg)
++    }
+ }
+ 
+ fn slots(pkgs: &mut Packages, pkg: &Rc<Package>, mesh: &SkeletalMesh, max_texture: u32) -> Vec<MaterialSlot> {
+@@ -255,7 +338,7 @@ pub fn material_textures(pkg: &Package, export: usize) -> Vec<(String, i32)> {
+     let Ok(props) = props::Props::read(pkg, e) else { return out };
+     let Some(arr) = props.get("TextureParameterValues") else { return out };
+     // Array of structs, each a tagged property list: walk it.
+-    let mut c = package::Cursor::new(&pkg.data, arr.at);
++    let mut c = pkg.cursor(arr.at);
+     let Ok(n) = c.count(8) else { return out };
+     let mut walk = || -> Option<()> {
+         for _ in 0..n {
+diff --git a/crates/me_assets/src/morph.rs b/crates/me_assets/src/morph.rs
+index e1e6c9b..581deb4 100644
+--- a/crates/me_assets/src/morph.rs
++++ b/crates/me_assets/src/morph.rs
+@@ -6,7 +6,7 @@
+ //! packed normal delta 4 bytes, source vertex index u16 = 18 bytes) and the base mesh's
+ //! vertex count.
+ 
+-use crate::package::{Cursor, Package};
++use crate::package::Package;
+ use crate::props::Props;
+ use crate::{Error, Result};
+ 
+@@ -36,7 +36,7 @@ pub fn read_morph_set(pkg: &Package, set: &str) -> Result<Vec<MorphTarget>> {
+ pub fn read_morph_target(pkg: &Package, export: usize) -> Result<MorphTarget> {
+     let e = pkg.exports.get(export).ok_or_else(|| Error::Missing(format!("export {export}")))?;
+     let props = Props::read(pkg, e)?;
+-    let mut c = Cursor::new(&pkg.data, props.end);
++    let mut c = pkg.cursor(props.end);
+     if c.i32()? < 1 {
+         return Err(Error::Format(format!("{}: no LODs", e.name)));
+     }
+diff --git a/crates/me_assets/src/package.rs b/crates/me_assets/src/package.rs
+index 8f77607..b63274d 100644
+--- a/crates/me_assets/src/package.rs
++++ b/crates/me_assets/src/package.rs
+@@ -8,16 +8,20 @@ use crate::{Error, Result};
+ 
+ pub const TAG: u32 = 0x9E2A_83C1;
+ 
+-/// Little-endian cursor over a byte slice.
++/// Cursor over a byte slice: little-endian (PC packages), or big-endian (Xbox 360 packages).
+ #[derive(Clone)]
+ pub struct Cursor<'a> {
+     pub data: &'a [u8],
+     pub pos: usize,
++    pub be: bool,
+ }
+ 
+ impl<'a> Cursor<'a> {
+     pub fn new(data: &'a [u8], pos: usize) -> Self {
+-        Self { data, pos }
++        Self { data, pos, be: false }
++    }
++    pub fn new_be(data: &'a [u8], pos: usize, be: bool) -> Self {
++        Self { data, pos, be }
+     }
+     fn take(&mut self, n: usize) -> Result<&'a [u8]> {
+         let end = self.pos.checked_add(n).ok_or(Error::Truncated)?;
+@@ -32,19 +36,24 @@ impl<'a> Cursor<'a> {
+         Ok(self.take(1)?[0])
+     }
+     pub fn u16(&mut self) -> Result<u16> {
+-        Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()))
++        let b = self.take(2)?.try_into().unwrap();
++        Ok(if self.be { u16::from_be_bytes(b) } else { u16::from_le_bytes(b) })
+     }
+     pub fn u32(&mut self) -> Result<u32> {
+-        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
++        let b = self.take(4)?.try_into().unwrap();
++        Ok(if self.be { u32::from_be_bytes(b) } else { u32::from_le_bytes(b) })
+     }
+     pub fn i32(&mut self) -> Result<i32> {
+-        Ok(i32::from_le_bytes(self.take(4)?.try_into().unwrap()))
++        let b = self.take(4)?.try_into().unwrap();
++        Ok(if self.be { i32::from_be_bytes(b) } else { i32::from_le_bytes(b) })
+     }
+     pub fn u64(&mut self) -> Result<u64> {
+-        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
++        let b = self.take(8)?.try_into().unwrap();
++        Ok(if self.be { u64::from_be_bytes(b) } else { u64::from_le_bytes(b) })
+     }
+     pub fn f32(&mut self) -> Result<f32> {
+-        Ok(f32::from_le_bytes(self.take(4)?.try_into().unwrap()))
++        let b = self.take(4)?.try_into().unwrap();
++        Ok(if self.be { f32::from_be_bytes(b) } else { f32::from_le_bytes(b) })
+     }
+     pub fn vec3(&mut self) -> Result<[f32; 3]> {
+         Ok([self.f32()?, self.f32()?, self.f32()?])
+@@ -70,7 +79,8 @@ impl<'a> Cursor<'a> {
+             Ok(b[..b.len() - 1].iter().map(|&c| c as char).collect())
+         } else {
+             let b = self.take((-n) as usize * 2)?;
+-            let w: Vec<u16> = b.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
++            let be = self.be;
++            let w: Vec<u16> = b.chunks_exact(2).map(|c| if be { u16::from_be_bytes([c[0], c[1]]) } else { u16::from_le_bytes([c[0], c[1]]) }).collect();
+             Ok(String::from_utf16_lossy(&w[..w.len() - 1]))
+         }
+     }
+@@ -95,6 +105,8 @@ pub struct Export {
+ }
+ 
+ pub struct Package {
++    /// An Xbox 360 package (big-endian).
++    pub big_endian: bool,
+     pub data: Vec<u8>,
+     pub names: Vec<String>,
+     pub imports: Vec<Import>,
+@@ -108,12 +120,14 @@ impl Package {
+     }
+ 
+     pub fn parse(raw: Vec<u8>) -> Result<Self> {
+-        let mut c = Cursor::new(&raw, 0);
++        let be = raw.get(..4) == Some(&TAG.to_be_bytes()[..]);
++        let mut c = Cursor::new_be(&raw, 0, be);
+         if c.u32()? != TAG {
+             return Err(Error::Format("not an Unreal package".into()));
+         }
+-        let version = c.u16()?;
+-        let _licensee = c.u16()?;
++        // One u32: licensee in the high half (41 on Xbox 360, 43 on PC), file version in the low.
++        let v = c.u32()?;
++        let version = (v & 0xFFFF) as u16;
+         if version != 536 {
+             return Err(Error::Format(format!("package version {version}, expected 536 (Mirror's Edge)")));
+         }
+@@ -148,7 +162,7 @@ impl Package {
+             let mut out = vec![0u8; total.max(summary_end)];
+             out[..summary_end].copy_from_slice(&raw[..summary_end]);
+             for &(uo, _us, co, _cs) in &chunks {
+-                let bytes = decompress_chunked(&raw, co)?;
++                let bytes = decompress_chunked(&raw, co, be)?;
+                 out[uo..uo + bytes.len()].copy_from_slice(&bytes);
+             }
+             out
+@@ -156,13 +170,13 @@ impl Package {
+             raw
+         };
+ 
+-        let mut pkg = Package { data, names: vec![], imports: vec![], exports: vec![] };
+-        let mut c = Cursor::new(&pkg.data, name_off);
++        let mut pkg = Package { big_endian: be, data, names: vec![], imports: vec![], exports: vec![] };
++        let mut c = Cursor::new_be(&pkg.data, name_off, be);
+         for _ in 0..name_count {
+             pkg.names.push(c.fstring()?);
+             c.u64()?;
+         }
+-        let mut c = Cursor::new(&pkg.data, import_off);
++        let mut c = Cursor::new_be(&pkg.data, import_off, be);
+         for _ in 0..import_count {
+             let _pkg = read_name(&pkg.names, &mut c)?;
+             let class = read_name(&pkg.names, &mut c)?;
+@@ -170,7 +184,7 @@ impl Package {
+             let name = read_name(&pkg.names, &mut c)?;
+             pkg.imports.push(Import { class, outer, name });
+         }
+-        let mut c = Cursor::new(&pkg.data, export_off);
++        let mut c = Cursor::new_be(&pkg.data, export_off, be);
+         for _ in 0..export_count {
+             let class = c.i32()?;
+             let _super = c.i32()?;
+@@ -248,6 +262,11 @@ impl Package {
+         self.exports.iter().filter(move |e| self.class_name(e) == class)
+     }
+ 
++    /// A cursor at `pos` in this package's data, in its byte order.
++    pub fn cursor(&self, pos: usize) -> Cursor<'_> {
++        Cursor::new_be(&self.data, pos, self.big_endian)
++    }
++
+     pub fn bytes(&self, e: &Export) -> Result<&[u8]> {
+         self.data.get(e.offset..e.offset + e.size).ok_or(Error::Truncated)
+     }
+@@ -261,8 +280,8 @@ pub fn read_name(names: &[String], c: &mut Cursor) -> Result<String> {
+ }
+ 
+ /// A UE3 compressed-chunk block (tag, block size, sizes, per-block table, LZO data).
+-pub fn decompress_chunked(data: &[u8], at: usize) -> Result<Vec<u8>> {
+-    let mut c = Cursor::new(data, at);
++pub fn decompress_chunked(data: &[u8], at: usize, be: bool) -> Result<Vec<u8>> {
++    let mut c = Cursor::new_be(data, at, be);
+     if c.u32()? != TAG {
+         return Err(Error::Format("bad compressed chunk tag".into()));
+     }
+diff --git a/crates/me_assets/src/props.rs b/crates/me_assets/src/props.rs
+index 20e06c3..10b6f7a 100644
+--- a/crates/me_assets/src/props.rs
++++ b/crates/me_assets/src/props.rs
+@@ -1,7 +1,7 @@
+ //! UE3 tagged-property lists (the default-value / serialized-property block at
+ //! the start of every object).
+ 
+-use crate::package::{read_name, Cursor, Export, Package};
++use crate::package::{read_name, Export, Package};
+ use crate::{Error, Result};
+ 
+ #[derive(Clone, Debug)]
+@@ -40,7 +40,7 @@ impl Props {
+             if at + 8 > end {
+                 break;
+             }
+-            let mut c = Cursor::new(&pkg.data, at);
++            let mut c = pkg.cursor(at);
+             let Ok(first) = read_name(&pkg.names, &mut c) else { continue };
+             if first != "None" {
+                 let Ok(kind) = read_name(&pkg.names, &mut c) else { continue };
+@@ -58,21 +58,21 @@ impl Props {
+     /// A Vector struct property.
+     pub fn vec3(&self, pkg: &Package, name: &str) -> Option<[f32; 3]> {
+         let t = self.get(name)?;
+-        let mut c = Cursor::new(&pkg.data, t.at);
++        let mut c = pkg.cursor(t.at);
+         c.vec3().ok()
+     }
+ 
+     /// A Rotator struct property (pitch, yaw, roll in 65536ths of a turn).
+     pub fn rotator(&self, pkg: &Package, name: &str) -> Option<[i32; 3]> {
+         let t = self.get(name)?;
+-        let mut c = Cursor::new(&pkg.data, t.at);
++        let mut c = pkg.cursor(t.at);
+         Some([c.i32().ok()?, c.i32().ok()?, c.i32().ok()?])
+     }
+ 
+     /// A property list starting at `start` (e.g. one element of an array of
+     /// structs), ending at its "None" terminator.
+     pub fn read_list(pkg: &Package, start: usize, limit: usize, what: &str) -> Result<Self> {
+-        let mut c = Cursor::new(&pkg.data, start);
++        let mut c = pkg.cursor(start);
+         let mut tags = vec![];
+         loop {
+             if c.pos >= limit {
+@@ -106,19 +106,19 @@ impl Props {
+ 
+     pub fn f32(&self, pkg: &Package, name: &str) -> Option<f32> {
+         let t = self.get(name)?;
+-        Cursor::new(&pkg.data, t.at).f32().ok()
++        pkg.cursor(t.at).f32().ok()
+     }
+ 
+     pub fn i32(&self, pkg: &Package, name: &str) -> Option<i32> {
+         let t = self.get(name)?;
+-        Cursor::new(&pkg.data, t.at).i32().ok()
++        pkg.cursor(t.at).i32().ok()
+     }
+ 
+     /// NameProperty, or a ByteProperty holding an enum name.
+     pub fn name(&self, pkg: &Package, name: &str) -> Option<String> {
+         let t = self.get(name)?;
+         if t.size == 8 {
+-            read_name(&pkg.names, &mut Cursor::new(&pkg.data, t.at)).ok()
++            read_name(&pkg.names, &mut pkg.cursor(t.at)).ok()
+         } else {
+             None
+         }
+@@ -127,7 +127,7 @@ impl Props {
+     /// Elements of an array of structs, each read as its own property list.
+     pub fn struct_array(&self, pkg: &Package, name: &str) -> Vec<Props> {
+         let Some(t) = self.get(name) else { return vec![] };
+-        let mut c = Cursor::new(&pkg.data, t.at);
++        let mut c = pkg.cursor(t.at);
+         let Ok(n) = c.count(8) else { return vec![] };
+         let limit = t.at + t.size;
+         let mut out = Vec::with_capacity(n);
+@@ -147,13 +147,13 @@ impl Props {
+     /// Array of object references.
+     pub fn object_array(&self, pkg: &Package, name: &str) -> Vec<i32> {
+         let Some(t) = self.get(name) else { return vec![] };
+-        let mut c = Cursor::new(&pkg.data, t.at);
++        let mut c = pkg.cursor(t.at);
+         let Ok(n) = c.count(4) else { return vec![] };
+         (0..n).filter_map(|_| c.i32().ok()).collect()
+     }
+ 
+     pub fn object(&self, pkg: &Package, name: &str) -> Option<i32> {
+         let t = self.get(name)?;
+-        Cursor::new(&pkg.data, t.at).i32().ok()
++        pkg.cursor(t.at).i32().ok()
+     }
+ }
+diff --git a/crates/me_assets/src/skeletal.rs b/crates/me_assets/src/skeletal.rs
+index 1042f27..bcb58a6 100644
+--- a/crates/me_assets/src/skeletal.rs
++++ b/crates/me_assets/src/skeletal.rs
+@@ -58,7 +58,7 @@ impl SkeletalMesh {
+             .find("SkeletalMesh", name)
+             .ok_or_else(|| Error::Missing(format!("SkeletalMesh {name}")))?;
+         let props = Props::read(pkg, e)?;
+-        let mut c = Cursor::new(&pkg.data, props.end);
++        let mut c = pkg.cursor(props.end);
+         c.i32()?; // ME-specific leading int
+         c.skip(28)?; // bounds
+         let nmat = c.count(4)?;
+@@ -115,6 +115,8 @@ impl SkeletalMesh {
+ 
+         let nchunks = c.count(4)?;
+         let mut vertices = Vec::new();
++        // Per chunk: its bone map and vertex count (for the Xbox 360's separate vertex buffer).
++        let mut chunk_maps: Vec<(Vec<u16>, usize)> = Vec::with_capacity(nchunks);
+         for _ in 0..nchunks {
+             let _base = c.i32()?;
+             let nr = c.count(49)?;
+@@ -125,19 +127,21 @@ impl SkeletalMesh {
+             c.skip(ns * 56)?;
+             let nmap = c.count(2)?;
+             let bonemap = (0..nmap).map(|_| c.u16()).collect::<Result<Vec<_>>>()?;
+-            c.skip(12)?; // num rigid, num soft, max influences
++            let (num_rigid, num_soft) = (c.i32()?.max(0) as usize, c.i32()?.max(0) as usize);
++            c.i32()?; // max influences
++            chunk_maps.push((bonemap.clone(), num_rigid + num_soft));
+             let map = |b: u8| -> Result<u16> {
+                 bonemap.get(b as usize).copied().ok_or_else(|| Error::Format(format!("bone map index {b}")))
+             };
+             for k in 0..nr {
+-                let mut v = Cursor::new(&pkg.data, rigid_at + 49 * k);
++                let mut v = pkg.cursor(rigid_at + 49 * k);
+                 let (position, [tangent, bitangent, normal], uv) = read_vertex_common(&mut v)?;
+                 let bone = pkg.data[rigid_at + 49 * k + 48];
+                 vertices.push(Vertex { position, normal, tangent, bitangent, uv, bones: [map(bone)?, 0, 0, 0], weights: [255, 0, 0, 0] });
+             }
+             for k in 0..ns {
+                 let at = soft_at + 56 * k;
+-                let mut v = Cursor::new(&pkg.data, at);
++                let mut v = pkg.cursor(at);
+                 let (position, [tangent, bitangent, normal], uv) = read_vertex_common(&mut v)?;
+                 let b = &pkg.data[at + 48..at + 52];
+                 let w = &pkg.data[at + 52..at + 56];
+@@ -152,6 +156,9 @@ impl SkeletalMesh {
+                 });
+             }
+         }
++        if vertices.is_empty() && pkg.big_endian {
++            vertices = read_xbox_vertices(&mut c, &chunk_maps)?;
++        }
+         if let Some(&max) = indices.iter().max() {
+             if max as usize >= vertices.len() {
+                 return Err(Error::Format(format!("index {max} beyond {} vertices", vertices.len())));
+@@ -172,3 +179,86 @@ fn read_vertex_common(c: &mut Cursor) -> Result<([f32; 3], [[f32; 3]; 3], [f32;
+     let uv = [c.f32()?, c.f32()?];
+     Ok((position, basis, uv))
+ }
++
++/// Xbox 360 meshes keep their chunks' vertex lists empty: the vertices follow the LOD's other data
++/// as one GPU skinning buffer. After the chunks: size, vertex count, an empty array, required bones, the raw point
++/// indices (bulk data), texture coordinate count, full-precision UVs flag, then the vertices
++/// (element size, count): position (3 floats), TangentX and TangentZ (packed normals stored as a
++/// big-endian u32, so their bytes are reversed), 4 bone indices and 4 weights (also reversed u32s),
++/// and UVs (2 half floats, or 2 floats when full precision). Vertices are in chunk order.
++fn read_xbox_vertices(c: &mut Cursor, chunks: &[(Vec<u16>, usize)]) -> Result<Vec<Vertex>> {
++    let _size = c.i32()?;
++    let count = c.count(0)?;
++    let n = c.count(1)?;
++    c.skip(n)?; // an array that's empty in Faith's meshes (Mirror's Edge's own)
++    let n = c.count(1)?;
++    c.skip(n)?; // required bones
++    let flags = c.i32()?;
++    let _elements = c.i32()?;
++    let on_disk = c.i32()?;
++    let _offset = c.i32()?;
++    if flags & 0x01 == 0 && on_disk > 0 {
++        c.skip(on_disk as usize)?; // raw point indices, inline
++    }
++    let _uv_sets = c.i32()?;
++    let full_uvs = c.i32()? != 0;
++    let elem = c.i32()? as usize;
++    let n = c.count(elem.max(1))?;
++    let want = if full_uvs { 36 } else { 32 };
++    if n != count || elem < want {
++        return Err(Error::Format(format!("Xbox vertex buffer: {n} vertices of {elem} bytes (expected {count} of {want})")));
++    }
++    let start = c.pos;
++    c.skip(n * elem)?;
++    let data = c.data;
++    let rev = |at: usize| [data[at + 3], data[at + 2], data[at + 1], data[at]];
++    let unpack = |b: [u8; 4]| [b[0] as f32 / 127.5 - 1.0, b[1] as f32 / 127.5 - 1.0, b[2] as f32 / 127.5 - 1.0, b[3] as f32 / 127.5 - 1.0];
++    let half = |at: usize| half_to_f32(u16::from_be_bytes([data[at], data[at + 1]]));
++    let mut out = Vec::with_capacity(n);
++    let mut chunk = 0;
++    let mut left = chunks.first().map_or(0, |c| c.1);
++    for k in 0..n {
++        while left == 0 && chunk + 1 < chunks.len() {
++            chunk += 1;
++            left = chunks[chunk].1;
++        }
++        left = left.saturating_sub(1);
++        let map = chunks.get(chunk).map(|c| c.0.as_slice()).unwrap_or(&[]);
++        let at = start + k * elem;
++        let mut v = Cursor::new_be(data, at, true);
++        let position = v.vec3()?;
++        let tx = unpack(rev(at + 12));
++        let tz = unpack(rev(at + 16));
++        let (tangent, normal) = ([tx[0], tx[1], tx[2]], [tz[0], tz[1], tz[2]]);
++        // TangentY = (TangentZ x TangentX) * the sign kept in TangentZ.w.
++        let sign = if tz[3] < 0.0 { -1.0 } else { 1.0 };
++        let bitangent = [
++            (normal[1] * tangent[2] - normal[2] * tangent[1]) * sign,
++            (normal[2] * tangent[0] - normal[0] * tangent[2]) * sign,
++            (normal[0] * tangent[1] - normal[1] * tangent[0]) * sign,
++        ];
++        let b = rev(at + 20);
++        let w = rev(at + 24);
++        let bone = |i: u8| -> Result<u16> { map.get(i as usize).copied().ok_or_else(|| Error::Format(format!("bone map index {i}"))) };
++        let bones = [bone(b[0])?, if w[1] > 0 { bone(b[1])? } else { 0 }, if w[2] > 0 { bone(b[2])? } else { 0 }, if w[3] > 0 { bone(b[3])? } else { 0 }];
++        let uv = if full_uvs {
++            let mut u = Cursor::new_be(data, at + 28, true);
++            [u.f32()?, u.f32()?]
++        } else {
++            [half(at + 28), half(at + 30)]
++        };
++        out.push(Vertex { position, normal, tangent, bitangent, uv, bones, weights: w });
++    }
++    Ok(out)
++}
++
++fn half_to_f32(h: u16) -> f32 {
++    let sign = if h & 0x8000 != 0 { -1.0 } else { 1.0 };
++    let exp = ((h >> 10) & 0x1F) as i32;
++    let frac = (h & 0x3FF) as f32;
++    match exp {
++        0 => sign * frac * 2f32.powi(-24),
++        31 => if frac == 0.0 { sign * f32::INFINITY } else { f32::NAN },
++        _ => sign * (1.0 + frac / 1024.0) * 2f32.powi(exp - 15),
++    }
++}
+diff --git a/crates/me_assets/src/sound.rs b/crates/me_assets/src/sound.rs
+index 6b09337..ff48023 100644
+--- a/crates/me_assets/src/sound.rs
++++ b/crates/me_assets/src/sound.rs
+@@ -9,14 +9,14 @@
+ use std::collections::HashMap;
+ use std::rc::Rc;
+ 
+-use crate::package::{decompress_chunked, Cursor, Package};
++use crate::package::{decompress_chunked, Package};
+ use crate::props::Props;
+ use crate::{Packages, Result};
+ 
+ #[derive(Clone, Debug)]
+ pub struct Wave {
+     pub name: String,
+-    /// Ogg Vorbis bytes.
++    /// Ogg Vorbis bytes (PC), or a PCM16 WAV file (Faith Runner V's Xbox 360 dump).
+     pub ogg: Rc<Vec<u8>>,
+     pub duration: f32,
+ }
+@@ -53,20 +53,21 @@ impl SoundBank {
+     }
+ 
+     fn load(&mut self, path: &str) -> Result<Option<Cue>> {
+-        let Some((pkg_name, rest)) = path.split_once('.') else { return Ok(None) };
+-        if !self.pkgs.has(pkg_name) {
+-            return Ok(None);
+-        }
+-        let pkg = self.pkgs.get(pkg_name)?;
+-        let Some(idx) = pkg.find_path("SoundCue", rest) else { return Ok(None) };
+-        let props = Props::read(&pkg, &pkg.exports[idx])?;
+-        let mult = props.f32(&pkg, "VolumeMultiplier").unwrap_or(1.0);
+-        let pmult = props.f32(&pkg, "PitchMultiplier").unwrap_or(1.0);
+-        let mut cue = Cue { path: path.to_string(), waves: vec![], volume: (mult, mult), pitch: (pmult, pmult), looping: false };
+-        if let Some(first) = props.object(&pkg, "FirstNode") {
+-            walk(&pkg, first, &mut cue, 0)?;
++        // On the Xbox, the packages hold the PC packages' objects, so paths start with their names;
++        // a cue can be in several, with its waves in only some.
++        for (pkg, idx) in self.pkgs.find_all("SoundCue", path) {
++            let props = Props::read(&pkg, &pkg.exports[idx])?;
++            let mult = props.f32(&pkg, "VolumeMultiplier").unwrap_or(1.0);
++            let pmult = props.f32(&pkg, "PitchMultiplier").unwrap_or(1.0);
++            let mut cue = Cue { path: path.to_string(), waves: vec![], volume: (mult, mult), pitch: (pmult, pmult), looping: false };
++            if let Some(first) = props.object(&pkg, "FirstNode") {
++                walk(&pkg, first, &mut cue, 0)?;
++            }
++            if !cue.waves.is_empty() {
++                return Ok(Some(cue));
++            }
+         }
+-        Ok(if cue.waves.is_empty() { None } else { Some(cue) })
++        Ok(None)
+     }
+ }
+ 
+@@ -118,7 +119,7 @@ fn uniform(pkg: &Package, props: &Props, name: &str) -> Option<(f32, f32)> {
+ 
+ /// The CompressedPCData bulk block (the second one after RawData).
+ fn wave_ogg(pkg: &Package, start: usize, end: usize) -> Result<Option<Vec<u8>>> {
+-    let mut c = Cursor::new(&pkg.data, start);
++    let mut c = pkg.cursor(start);
+     for block in 0..2 {
+         if c.pos + 16 > end {
+             return Ok(None);
+@@ -137,11 +138,12 @@ fn wave_ogg(pkg: &Package, start: usize, end: usize) -> Result<Option<Vec<u8>>>
+                 return Ok(None);
+             }
+             let bytes = if flags & 0x10 != 0 {
+-                decompress_chunked(&pkg.data, at)?
++                decompress_chunked(&pkg.data, at, pkg.big_endian)?
+             } else {
+                 pkg.data[at..at + count].to_vec()
+             };
+-            return Ok(bytes.starts_with(b"OggS").then_some(bytes));
++            // Ogg Vorbis on PC; PCM16 WAV in Faith Runner V's Xbox 360 dump.
++            return Ok((bytes.starts_with(b"OggS") || bytes.starts_with(b"RIFF")).then_some(bytes));
+         }
+     }
+     Ok(None)
+diff --git a/crates/me_assets/src/texture.rs b/crates/me_assets/src/texture.rs
+index 84f9b25..2abd02f 100644
+--- a/crates/me_assets/src/texture.rs
++++ b/crates/me_assets/src/texture.rs
+@@ -25,7 +25,7 @@ pub fn read_texture_export(pkg: &Package, e: &crate::package::Export, max_size:
+     let name = &e.name;
+     let props = Props::read(pkg, e)?;
+     let format = props.name(pkg, "Format").unwrap_or_else(|| "PF_A8R8G8B8".into());
+-    let mut c = Cursor::new(&pkg.data, props.end);
++    let mut c = pkg.cursor(props.end);
+     skip_bulk(&mut c)?; // source art
+     let nmips = c.count(24)?;
+     let mut best: Option<(Vec<u8>, u32, u32)> = None;
+@@ -45,7 +45,7 @@ pub fn read_texture_export(pkg: &Package, e: &crate::package::Export, max_size:
+             continue;
+         }
+         let bytes = if flags & BULK_LZO != 0 {
+-            decompress_chunked(&pkg.data, data_at)?
++            decompress_chunked(&pkg.data, data_at, pkg.big_endian)?
+         } else {
+             pkg.data[data_at..data_at + count].to_vec()
+         };

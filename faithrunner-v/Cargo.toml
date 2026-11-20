@@ -29,8 +29,8 @@ windows = { version = "0.58", features = [
     "Win32_Graphics_Dxgi",
     "Win32_Graphics_Dxgi_Common",
 ] }
-# Faith's sounds (Ogg Vorbis from the player's install), on their own audio output.
-rodio = { version = "0.19", default-features = false, features = ["vorbis"] }
+# Faith's sounds (Ogg Vorbis from the player's PC install, WAV from the Xbox 360 dump), on their own audio output.
+rodio = { version = "0.19", default-features = false, features = ["vorbis", "wav"] }
 
 [profile.release]
 panic = "unwind"

@@ -25,7 +25,7 @@ pub fn read_texture_export(pkg: &Package, e: &crate::package::Export, max_size: 
     let name = &e.name;
     let props = Props::read(pkg, e)?;
     let format = props.name(pkg, "Format").unwrap_or_else(|| "PF_A8R8G8B8".into());
-    let mut c = Cursor::new(&pkg.data, props.end);
+    let mut c = pkg.cursor(props.end);
     skip_bulk(&mut c)?; // source art
     let nmips = c.count(24)?;
     let mut best: Option<(Vec<u8>, u32, u32)> = None;
@@ -45,7 +45,7 @@ pub fn read_texture_export(pkg: &Package, e: &crate::package::Export, max_size: 
             continue;
         }
         let bytes = if flags & BULK_LZO != 0 {
-            decompress_chunked(&pkg.data, data_at)?
+            decompress_chunked(&pkg.data, data_at, pkg.big_endian)?
         } else {
             pkg.data[data_at..data_at + count].to_vec()
         };

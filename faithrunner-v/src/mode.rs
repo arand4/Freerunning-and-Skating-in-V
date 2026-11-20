@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use faith_anim::sound::{Director, SoundCmd};
-use faith_move::greybox::Surface;
 use faith_move::{CameraFx, CameraFxSettings, Controller, Input, LookLimiter, MeshWorld, State, Tuning};
 use glam::{Vec2, Vec3};
 
@@ -346,6 +345,8 @@ struct Sound {
     tx: std::sync::mpsc::Sender<Msg>,
     pending: Option<std::sync::mpsc::Receiver<std::collections::HashMap<String, faith_anim::sound::CueInfo>>>,
     director: Option<Director>,
+    /// What her feet and hands touch (GTA's materials), for the step sounds.
+    surface: crate::surface::Probe,
 }
 
 /// The body, once it has loaded in the background (None: not wanted, not found, or failed).
@@ -422,7 +423,7 @@ pub fn run() {
         voice: cfg.voice_volume,
         effects: cfg.effects_volume,
     };
-    let mut sound = cfg.sounds.then(|| Sound { tx: audio::start(volumes), pending: None, director: None });
+    let mut sound = cfg.sounds.then(|| Sound { tx: audio::start(volumes), pending: None, director: None, surface: crate::surface::Probe::new() });
     let mut cues_asked = false;
     // The character model (menu "Character"): a model change being loaded, the model the game
     // gave you (to go back to), and Faith mode to switch back on after the change.
@@ -1043,7 +1044,12 @@ fn play_sounds(f: &Faith, snd: &mut Sound, dt: f32, step_phase: f32) {
     let Some(director) = snd.director.as_mut() else { return };
     let mut out: Vec<SoundCmd> = vec![];
     let notifies = f.body.as_ref().map(|b| b.rig.driver.notifies().to_vec()).unwrap_or_default();
-    director.update(dt, &f.ctrl, &notifies, f.body.is_some(), step_phase, &|_| Surface::Concrete, &mut out);
+    let feet = to_gta(f.ctrl.feet, f.origin);
+    let forward = to_gta(f.ctrl.feet + f.ctrl.forward(), f.origin) - feet;
+    let ladder = matches!(f.ctrl.state.name(), "Onto ladder" | "Ladder" | "Off ladder");
+    snd.surface.update(f.ped, feet, forward, ladder);
+    let (on_feet, on_hands) = (snd.surface.feet, snd.surface.hands);
+    director.update(dt, &f.ctrl, &notifies, f.body.is_some(), step_phase, &|hand| if hand { on_hands } else { on_feet }, &mut out);
     for cmd in out {
         // Faith's female voice (breathing, effort) only with Faith's own body.
         if f.body_mode != "faith" && !FAITH_PED.load(std::sync::atomic::Ordering::Relaxed) && matches!(&cmd, SoundCmd::Play { cue, .. } if cue.starts_with("a_character_female")) {
